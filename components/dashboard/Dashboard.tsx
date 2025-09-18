@@ -12,6 +12,7 @@ import AddVacationModal from './AddVacationModal'
 import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
+import { getEmployees, getVacations, initializeStorage } from '@/lib/clientStorage'
 
 export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -45,60 +46,78 @@ export default function Dashboard() {
 
   // Fetch employees and vacations data
   useEffect(() => {
+    // Initialize localStorage first
+    initializeStorage()
     fetchEmployeesAndVacations()
   }, [selectedYear, refreshKey])
 
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {
-      // Fetch employees
-      const employeesResponse = await fetch('/api/employees')
-      const employeesResult = await employeesResponse.json()
-      
-      if (employeesResult.ok) {
-        const employeesWithColors = (employeesResult.data || []).map((emp: any, index: number) => ({
-          ...emp,
-          color: emp.color || defaultEmployeeColors[index % defaultEmployeeColors.length]
-        }))
-        setEmployees(employeesWithColors)
-        
-        // Fetch vacations for all employees
-        const vacationPromises = employeesWithColors.map(async (emp: any) => {
-          const vacationsResponse = await fetch(`/api/vacations?employee_id=${emp.id}&year=${selectedYear}`)
-          const vacationsResult = await vacationsResponse.json()
-          
-          if (vacationsResult.ok) {
-            return (vacationsResult.data || []).map((vacation: any) => ({
-              ...vacation,
-              employeeName: emp.name,
-              color: emp.color,
-              dates: generateDateRange(vacation.start_date, vacation.end_date)
-            }))
-          }
-          return []
-        })
-        
-        const allVacations = await Promise.all(vacationPromises)
-        const flattenedVacations = allVacations.flat()
-        
-        // Convert vacation ranges to individual dates for calendar display
-        const vacationDates = flattenedVacations.flatMap((vacation: any) => 
-          vacation.dates?.map((date: string) => ({
-            employeeId: vacation.employee_id,
-            employeeName: vacation.employeeName,
-            date: date,
-            color: vacation.color,
-            type: vacation.type || 'vacation',
-            status: vacation.status || 'approved'
-          })) || []
-        )
-        
-        setVacations(vacationDates)
-      } else {
-        console.error('Failed to fetch employees:', employeesResult.error)
-        setEmployees([])
-        setVacations([])
+      // CRITICAL FIX: Load from localStorage first (primary source)
+      const localEmployees = getEmployees()
+      const localVacations = getVacations().filter(vacation => {
+        const vacationYear = new Date(vacation.start_date).getFullYear()
+        return vacationYear === selectedYear
+      })
+
+      console.log(`📖 Dashboard loaded ${localEmployees.length} employees and ${localVacations.length} vacations from localStorage`)
+
+      // Convert localStorage format to dashboard format
+      const employeesWithColors = localEmployees.map((emp: any, index: number) => ({
+        id: emp.id,
+        name: emp.name,
+        allowance_days: emp.allowance,
+        used_vacation_days: emp.used,
+        remaining_vacation: emp.remaining,
+        region_code: 'DE',
+        active: true,
+        color: emp.color || defaultEmployeeColors[index % defaultEmployeeColors.length]
+      }))
+      setEmployees(employeesWithColors)
+
+      // Also try to fetch from API (backup)
+      try {
+        const employeesResponse = await fetch('/api/employees')
+        const employeesResult = await employeesResponse.json()
+
+        if (employeesResult.ok && employeesResult.data) {
+          console.log(`📖 Dashboard also loaded ${employeesResult.data.length} employees from API`)
+          // Could merge API data here if needed
+        }
+      } catch (apiError) {
+        console.warn('API fetch failed (localStorage success):', apiError)
       }
+        
+      // Convert localStorage vacations to dashboard format
+      const flattenedVacations = localVacations.map((vacation: any) => {
+        const emp = employeesWithColors.find(e => e.id === vacation.employee_id)
+        return {
+          id: vacation.id,
+          employee_id: vacation.employee_id,
+          start_date: vacation.start_date,
+          end_date: vacation.end_date,
+          working_days: vacation.days,
+          note: vacation.reason,
+          employeeName: emp?.name || 'Unknown',
+          color: emp?.color || '#1c5975',
+          dates: generateDateRange(vacation.start_date, vacation.end_date)
+        }
+      })
+        
+      // Convert vacation ranges to individual dates for calendar display
+      const vacationDates = flattenedVacations.flatMap((vacation: any) =>
+        vacation.dates?.map((date: string) => ({
+          employeeId: vacation.employee_id,
+          employeeName: vacation.employeeName,
+          date: date,
+          color: vacation.color,
+          type: vacation.type || 'vacation',
+          status: vacation.status || 'approved'
+        })) || []
+      )
+
+      setVacations(vacationDates)
     } catch (error) {
       console.error('Error fetching data:', error)
       setEmployees([])

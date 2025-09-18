@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test localStorage Functions</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { margin: 10px; padding: 10px; background: #1c5975; color: white; border: none; cursor: pointer; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        .error { background: #ffe6e6; color: #d00; }
+        .success { background: #e6ffe6; color: #060; }
+    </style>
+</head>
+<body>
+    <h1>Test localStorage Functions</h1>
+
+    <button onclick="testInitialization()">1. Test Initialization</button>
+    <button onclick="testAddVacation()">2. Test Add Vacation</button>
+    <button onclick="testGetVacations()">3. Test Get Vacations</button>
+    <button onclick="clearAllData()">4. Clear All Data</button>
+
+    <div id="results"></div>
+
+    <script>
+        // Copy the localStorage functions here
+        const STORAGE_KEYS = {
+            EMPLOYEES: 'vacation-employees-2025',
+            VACATIONS: 'vacation-entries-2025'
+        };
+
+        const saveToStorage = (key, data) => {
+            try {
+                const serialized = JSON.stringify(data);
+                localStorage.setItem(key, serialized);
+                console.log(`✅ Saved ${key}:`, data);
+                return true;
+            } catch (error) {
+                console.error(`❌ Failed to save ${key}:`, error);
+                return false;
+            }
+        };
+
+        const loadFromStorage = (key, defaultValue) => {
+            try {
+                const stored = localStorage.getItem(key);
+                if (!stored) return defaultValue;
+                const parsed = JSON.parse(stored);
+                console.log(`📖 Loaded ${key}:`, parsed);
+                return parsed;
+            } catch (error) {
+                console.error(`❌ Failed to load ${key}:`, error);
+                return defaultValue;
+            }
+        };
+
+        const getDefaultEmployees = () => [
+            { id: '1', name: 'Andreas Pöppe', allowance: 38.0, used: 28.5, remaining: 9.5, color: '#FF0000' },
+            { id: '22', name: 'Safat Majumder', allowance: 28.0, used: 0.0, remaining: 28.0, color: '#FF4500' }
+        ];
+
+        const addResult = (message, isError = false) => {
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+        };
+
+        function testInitialization() {
+            try {
+                const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES, getDefaultEmployees());
+                if (employees.length === 0) {
+                    saveToStorage(STORAGE_KEYS.EMPLOYEES, getDefaultEmployees());
+                }
+
+                const vacations = loadFromStorage(STORAGE_KEYS.VACATIONS, []);
+                if (!Array.isArray(vacations)) {
+                    saveToStorage(STORAGE_KEYS.VACATIONS, []);
+                }
+
+                addResult(`✅ Initialization successful. Employees: ${employees.length}, Vacations: ${vacations.length}`);
+            } catch (error) {
+                addResult(`❌ Initialization failed: ${error.message}`, true);
+            }
+        }
+
+        function testAddVacation() {
+            try {
+                // Get current data
+                const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES, getDefaultEmployees());
+                const vacations = loadFromStorage(STORAGE_KEYS.VACATIONS, []);
+
+                // Create test vacation
+                const newVacation = {
+                    id: Date.now().toString(),
+                    employee_id: '22', // Safat Majumder
+                    start_date: '2025-03-15',
+                    end_date: '2025-03-20',
+                    days: 4,
+                    reason: 'Test Vacation',
+                    created_at: new Date().toISOString()
+                };
+
+                // Add vacation
+                vacations.push(newVacation);
+                const saved = saveToStorage(STORAGE_KEYS.VACATIONS, vacations);
+
+                // Update employee
+                const empIndex = employees.findIndex(emp => emp.id === '22');
+                if (empIndex !== -1) {
+                    employees[empIndex].used += 4;
+                    employees[empIndex].remaining = employees[empIndex].allowance - employees[empIndex].used;
+                    saveToStorage(STORAGE_KEYS.EMPLOYEES, employees);
+                }
+
+                if (saved) {
+                    addResult(`✅ Vacation added successfully! ID: ${newVacation.id}`);
+                } else {
+                    addResult(`❌ Failed to save vacation`, true);
+                }
+            } catch (error) {
+                addResult(`❌ Add vacation failed: ${error.message}`, true);
+            }
+        }
+
+        function testGetVacations() {
+            try {
+                const vacations = loadFromStorage(STORAGE_KEYS.VACATIONS, []);
+                const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES, []);
+
+                addResult(`📊 Found ${vacations.length} vacations and ${employees.length} employees`);
+
+                vacations.forEach(vacation => {
+                    const emp = employees.find(e => e.id === vacation.employee_id);
+                    addResult(`📅 ${emp?.name || 'Unknown'}: ${vacation.start_date} to ${vacation.end_date} (${vacation.days} days)`);
+                });
+
+                if (vacations.length === 0) {
+                    addResult(`ℹ️ No vacations found in localStorage`);
+                }
+            } catch (error) {
+                addResult(`❌ Get vacations failed: ${error.message}`, true);
+            }
+        }
+
+        function clearAllData() {
+            try {
+                localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
+                localStorage.removeItem(STORAGE_KEYS.VACATIONS);
+                addResult(`🗑️ All data cleared from localStorage`);
+            } catch (error) {
+                addResult(`❌ Clear data failed: ${error.message}`, true);
+            }
+        }
+
+        // Auto-initialize on load
+        window.onload = function() {
+            addResult(`🚀 Testing localStorage functionality...`);
+            testInitialization();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Safat Majumder Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        button { margin: 10px; padding: 15px 25px; background: #FF4500; color: white; border: none; cursor: pointer; border-radius: 5px; font-size: 16px; }
+        button:hover { background: #E03E00; }
+        .result { margin: 15px 0; padding: 15px; border-radius: 5px; }
+        .error { background: #ffe6e6; color: #d00; border: 1px solid #ffcccc; }
+        .success { background: #e6ffe6; color: #060; border: 1px solid #ccffcc; }
+        .info { background: #e6f3ff; color: #0066cc; border: 1px solid #cce6ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Safat Majumder's Vacation Data</h1>
+        <p>This tool will reset Safat Majumder's vacation usage to 0 and remove any vacation entries.</p>
+
+        <button onclick="clearSafatData()">🗑️ Clear Safat's Vacation Data</button>
+        <button onclick="viewCurrentData()">👁️ View Current Data</button>
+        <button onclick="clearAllData()">⚠️ Clear ALL Data (Reset Everything)</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Storage keys
+        const STORAGE_KEYS = {
+            EMPLOYEES: 'vacation-employees-2025',
+            VACATIONS: 'vacation-entries-2025'
+        };
+
+        // Safat Majumder's employee ID
+        const SAFAT_ID = '22';
+
+        const addResult = (message, type = 'info') => {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+        };
+
+        function clearSafatData() {
+            try {
+                // Load current data
+                const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+                const vacations = JSON.parse(localStorage.getItem(STORAGE_KEYS.VACATIONS) || '[]');
+
+                // Find Safat and reset his data
+                const safatIndex = employees.findIndex(emp => emp.id === SAFAT_ID);
+                if (safatIndex !== -1) {
+                    employees[safatIndex].used = 0.0;
+                    employees[safatIndex].remaining = employees[safatIndex].allowance;
+                    addResult(`✅ Reset Safat Majumder: 0 used, ${employees[safatIndex].allowance} remaining`, 'success');
+                } else {
+                    addResult(`⚠️ Safat Majumder not found in employee data`, 'error');
+                }
+
+                // Remove all of Safat's vacation entries
+                const originalVacationCount = vacations.length;
+                const filteredVacations = vacations.filter(vacation => vacation.employee_id !== SAFAT_ID);
+                const removedCount = originalVacationCount - filteredVacations.length;
+
+                // Save updated data
+                localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees));
+                localStorage.setItem(STORAGE_KEYS.VACATIONS, JSON.stringify(filteredVacations));
+
+                addResult(`✅ Removed ${removedCount} vacation entries for Safat Majumder`, 'success');
+                addResult(`✅ Safat Majumder's data has been completely reset!`, 'success');
+
+            } catch (error) {
+                addResult(`❌ Error clearing Safat's data: ${error.message}`, 'error');
+            }
+        }
+
+        function viewCurrentData() {
+            try {
+                const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+                const vacations = JSON.parse(localStorage.getItem(STORAGE_KEYS.VACATIONS) || '[]');
+
+                const safat = employees.find(emp => emp.id === SAFAT_ID);
+                if (safat) {
+                    addResult(`📊 Safat Majumder: ${safat.used} used / ${safat.allowance} allowance (${safat.remaining} remaining)`, 'info');
+                } else {
+                    addResult(`⚠️ Safat Majumder not found`, 'error');
+                }
+
+                const safatVacations = vacations.filter(v => v.employee_id === SAFAT_ID);
+                addResult(`📅 Safat has ${safatVacations.length} vacation entries`, 'info');
+
+                safatVacations.forEach(vacation => {
+                    addResult(`📍 ${vacation.start_date} to ${vacation.end_date} (${vacation.days} days): ${vacation.reason}`, 'info');
+                });
+
+            } catch (error) {
+                addResult(`❌ Error viewing data: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAllData() {
+            if (confirm('⚠️ This will delete ALL employee and vacation data. Are you sure?')) {
+                try {
+                    localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
+                    localStorage.removeItem(STORAGE_KEYS.VACATIONS);
+                    addResult(`🗑️ All vacation data cleared from localStorage`, 'success');
+                } catch (error) {
+                    addResult(`❌ Error clearing all data: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Auto-show current data on load
+        window.onload = function() {
+            addResult(`🚀 Safat Majumder Data Manager Ready`, 'info');
+            viewCurrentData();
+        };
+    </script>
+</body>
+</html>
