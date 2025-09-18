@@ -44,6 +44,29 @@ export default function CalendarPage() {
     fetchData()
   }, [selectedYear])
 
+  // REAL-TIME UPDATES: Listen for localStorage changes
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('vacation-employees') || e.key.includes('vacation-entries'))) {
+        console.log('🔄 Calendar Page: localStorage changed, refreshing data')
+        fetchData()
+      }
+    }
+
+    const handleCustomStorageChange = () => {
+      console.log('🔄 Calendar Page: Custom storage event, refreshing data')
+      fetchData()
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('localStorageUpdate', handleCustomStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('localStorageUpdate', handleCustomStorageChange)
+    }
+  }, [selectedYear])
+
   const fetchData = async () => {
     try {
       setLoading(true)

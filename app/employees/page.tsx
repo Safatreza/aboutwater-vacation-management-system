@@ -5,15 +5,7 @@ import AboutWaterHeader from '@/components/layout/AboutWaterHeader'
 import AddEmployeeModal from '@/components/dashboard/AddEmployeeModal'
 import EditableNumber from '@/components/ui/EditableNumber'
 import { Users, Plus, Trash2, Calendar, Clock } from 'lucide-react'
-
-interface Employee {
-  id: string
-  name: string
-  allowance_days: number
-  region_code: string
-  active: boolean
-  created_at: string
-}
+import { getEmployees, getVacations, saveEmployees, StoredEmployee } from '@/lib/clientStorage'
 
 interface EmployeeSummary {
   employee_id: string
@@ -22,38 +14,68 @@ interface EmployeeSummary {
   used_days: number
   remaining_days: number
   employee_region: string
+  color?: string
 }
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>([])
+  const [employees, setEmployees] = useState<StoredEmployee[]>([])
   const [employeeSummaries, setEmployeeSummaries] = useState<EmployeeSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedYear] = useState(new Date().getFullYear())
 
   useEffect(() => {
-    fetchData()
+    loadEmployeeData()
   }, [selectedYear])
 
-  const fetchData = async () => {
+  // REAL-TIME UPDATES: Listen for localStorage changes
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('vacation-employees') || e.key.includes('vacation-entries'))) {
+        console.log('🔄 Employees Page: localStorage changed, refreshing data')
+        loadEmployeeData()
+      }
+    }
+
+    const handleCustomStorageChange = () => {
+      console.log('🔄 Employees Page: Custom storage event, refreshing data')
+      loadEmployeeData()
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('localStorageUpdate', handleCustomStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('localStorageUpdate', handleCustomStorageChange)
+    }
+  }, [selectedYear])
+
+  const loadEmployeeData = () => {
     try {
       setLoading(true)
 
-      // Fetch employees
-      const empResponse = await fetch('/api/employees')
-      const empResult = await empResponse.json()
-      if (empResult.ok) {
-        setEmployees(empResult.data || [])
-      }
+      // PRIMARY: Load from localStorage for instant updates
+      const localEmployees = getEmployees()
+      const localVacations = getVacations()
 
-      // Fetch employee summaries
-      const summaryResponse = await fetch(`/api/employees/summary?year=${selectedYear}`)
-      const summaryResult = await summaryResponse.json()
-      if (summaryResult.ok) {
-        setEmployeeSummaries(summaryResult.data || [])
-      }
+      console.log(`📖 Employees Page: Loading ${localEmployees.length} employees from localStorage`)
+
+      // Convert to EmployeeSummary format
+      const summaries: EmployeeSummary[] = localEmployees.map(emp => ({
+        employee_id: emp.id,
+        employee_name: emp.name,
+        vacation_allowance: emp.allowance,
+        used_days: emp.used,
+        remaining_days: emp.remaining,
+        employee_region: 'DE',
+        color: emp.color
+      }))
+
+      setEmployees(localEmployees)
+      setEmployeeSummaries(summaries)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      console.error('Error loading employee data:', error)
     } finally {
       setLoading(false)
     }
@@ -61,26 +83,24 @@ export default function EmployeesPage() {
 
   const handleAddEmployee = () => {
     setShowAddModal(false)
-    fetchData() // Refresh data after adding
+    loadEmployeeData() // Refresh data after adding
   }
 
-  const handleDeleteEmployee = async (employeeId: string, employeeName: string) => {
+  const handleDeleteEmployee = (employeeId: string, employeeName: string) => {
     if (!confirm(`Sind Sie sicher, dass Sie ${employeeName} löschen möchten?`)) {
       return
     }
 
     try {
-      const response = await fetch(`/api/employees/${employeeId}`, {
-        method: 'DELETE'
-      })
+      // Remove from localStorage
+      const currentEmployees = getEmployees()
+      const updatedEmployees = currentEmployees.filter(emp => emp.id !== employeeId)
 
-      const result = await response.json()
-
-      if (result.ok) {
+      if (saveEmployees(updatedEmployees)) {
         alert(`Mitarbeiter ${employeeName} wurde erfolgreich gelöscht.`)
-        fetchData() // Refresh data
+        loadEmployeeData() // Refresh data
       } else {
-        alert(`Fehler beim Löschen: ${result.error}`)
+        throw new Error('Failed to save updated employee list')
       }
     } catch (error) {
       console.error('Error deleting employee:', error)
@@ -90,23 +110,25 @@ export default function EmployeesPage() {
 
   const handleUpdateAllowance = async (employeeId: string, newAllowance: number) => {
     try {
-      const response = await fetch(`/api/employees/${employeeId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          allowance_days: newAllowance
-        })
+      // Update in localStorage
+      const currentEmployees = getEmployees()
+      const updatedEmployees = currentEmployees.map(emp => {
+        if (emp.id === employeeId) {
+          const newRemaining = newAllowance - emp.used
+          return {
+            ...emp,
+            allowance: newAllowance,
+            remaining: newRemaining
+          }
+        }
+        return emp
       })
 
-      const result = await response.json()
-
-      if (result.ok) {
-        // Refresh data to show updated calculations
-        fetchData()
+      if (saveEmployees(updatedEmployees)) {
+        console.log(`✅ Updated allowance for employee ${employeeId}: ${newAllowance} days`)
+        loadEmployeeData() // Refresh data to show updated calculations
       } else {
-        throw new Error(result.error)
+        throw new Error('Failed to save updated employee data')
       }
     } catch (error) {
       console.error('Error updating allowance:', error)
@@ -249,12 +271,12 @@ export default function EmployeesPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 font-asap">
-                              {employee.region_code}
+                              DE
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-asap">
                             <EditableNumber
-                              value={summary?.vacation_allowance || employee.allowance_days}
+                              value={employee.allowance}
                               onSave={(newValue) => handleUpdateAllowance(employee.id, newValue)}
                               min={1}
                               max={365}
@@ -264,16 +286,16 @@ export default function EmployeesPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-asap">
                             <span className="text-orange-600 font-medium">
-                              {summary?.used_days || 0} Tage
+                              {employee.used} Tage
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-asap">
                             <span className="text-green-600 font-medium">
-                              {summary?.remaining_days || employee.allowance_days} Tage
+                              {employee.remaining} Tage
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-asap">
-                            {new Date(employee.created_at).toLocaleDateString('de-DE')}
+                            {new Date().toLocaleDateString('de-DE')}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
