@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, Calendar } from 'lucide-react'
+import { addVacation } from '@/lib/clientStorage'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -27,34 +28,47 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
     setLoading(true)
 
     try {
-      const response = await fetch('/api/vacations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          employee_id: employeeId,
-          start_date: startDate,
-          end_date: endDate,
-          note: note.trim() || null
-        })
-      })
-
-      const result = await response.json()
-
-      if (!result.ok) {
-        throw new Error(result.error || 'Failed to create vacation')
-      }
-
-      const vacation = result.data
+      // Calculate vacation days
       const dayCount = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-      alert(`Vacation added successfully!\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}`)
+      // CRITICAL FIX: Use robust localStorage persistence
+      const result = addVacation(employeeId, {
+        startDate,
+        endDate,
+        days: dayCount,
+        reason: note.trim() || 'Urlaub'
+      })
+
+      if (!result.success) {
+        throw new Error('Failed to save vacation to localStorage')
+      }
+
+      console.log('✅ Vacation saved successfully:', result.vacation)
+
+      // Also try to save to API (fallback - doesn't matter if it fails)
+      try {
+        await fetch('/api/vacations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            employee_id: employeeId,
+            start_date: startDate,
+            end_date: endDate,
+            note: note.trim() || null
+          })
+        })
+      } catch (apiError) {
+        console.warn('API save failed (localStorage success):', apiError)
+      }
+
+      alert(`✅ Vacation added successfully!\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\nRemaining: ${result.employee?.remaining || 'N/A'} days`)
       onSuccess()
       onClose()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      alert(`Failed to add vacation: ${errorMessage}`)
+      alert(`❌ Failed to add vacation: ${errorMessage}`)
       console.error('Error adding vacation:', errorMessage)
     } finally {
       setLoading(false)

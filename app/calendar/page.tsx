@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import AboutWaterHeader from '@/components/layout/AboutWaterHeader'
 import { Calendar, Users, CalendarDays } from 'lucide-react'
 import { getEmployeeColorByName, getContrastColor } from '@/lib/employeeColors'
+import { getEmployees, getVacationsForDate, initializeStorage } from '@/lib/clientStorage'
 
 interface Employee {
   id: string
@@ -38,6 +39,8 @@ export default function CalendarPage() {
   const [selectedYear] = useState(new Date().getFullYear())
 
   useEffect(() => {
+    // Initialize localStorage first
+    initializeStorage()
     fetchData()
   }, [selectedYear])
 
@@ -45,79 +48,68 @@ export default function CalendarPage() {
     try {
       setLoading(true)
 
-      // Fetch employees from API
-      const empResponse = await fetch('/api/employees')
-      const empResult = await empResponse.json()
-      let apiEmployees = []
-      if (empResult.ok) {
-        apiEmployees = empResult.data || []
-        setEmployees(apiEmployees)
+      // CRITICAL FIX: Load from localStorage first (primary source)
+      const localEmployees = getEmployees()
+      console.log(`📖 Loaded ${localEmployees.length} employees from localStorage`)
+
+      // Convert to expected format
+      const formattedEmployees: Employee[] = localEmployees.map(emp => ({
+        id: emp.id,
+        name: emp.name,
+        allowance_days: emp.allowance,
+        region_code: 'DE',
+        active: true
+      }))
+
+      setEmployees(formattedEmployees)
+
+      // Get all vacations for the current year from localStorage
+      const currentYear = selectedYear
+      const startOfYear = new Date(currentYear, 0, 1)
+      const endOfYear = new Date(currentYear, 11, 31)
+
+      let localVacations: Vacation[] = []
+      for (let date = new Date(startOfYear); date <= endOfYear; date.setDate(date.getDate() + 1)) {
+        const dayVacations = getVacationsForDate(new Date(date))
+        dayVacations.forEach(vacation => {
+          // Check if we already have this vacation (avoid duplicates)
+          if (!localVacations.find(v => v.id === vacation.id)) {
+            localVacations.push({
+              id: vacation.id,
+              employee_id: vacation.employee_id,
+              start_date: vacation.start_date,
+              end_date: vacation.end_date,
+              working_days: vacation.days,
+              note: vacation.reason
+            })
+          }
+        })
       }
 
-      // Also check localStorage for additional employee data
-      let localStorageEmployees = []
+      console.log(`📖 Loaded ${localVacations.length} vacations for ${currentYear} from localStorage`)
+      setVacations(localVacations)
+
+      // Also try to fetch from API (secondary source, don't fail if it doesn't work)
       try {
-        const storedEmployees = localStorage.getItem('vacation-employee-data')
-        if (storedEmployees) {
-          localStorageEmployees = JSON.parse(storedEmployees)
+        const empResponse = await fetch('/api/employees')
+        const vacResponse = await fetch(`/api/vacations?year=${selectedYear}`)
+        const holidayResponse = await fetch(`/api/holidays?region_code=DE&year=${selectedYear}`)
+
+        const [empResult, vacResult, holidayResult] = await Promise.all([
+          empResponse.json(),
+          vacResponse.json(),
+          holidayResponse.json()
+        ])
+
+        if (holidayResult.ok) {
+          setHolidays(holidayResult.data || [])
         }
-      } catch (error) {
-        console.error('Error parsing localStorage employees:', error)
+
+        console.log('📖 API data loaded as backup')
+      } catch (apiError) {
+        console.warn('API fetch failed (localStorage success):', apiError)
       }
 
-      // Merge employees (API first, then localStorage for any missing)
-      const mergedEmployees = [...apiEmployees]
-      localStorageEmployees.forEach(localEmp => {
-        if (!mergedEmployees.find(emp => emp.name === localEmp.name)) {
-          mergedEmployees.push(localEmp)
-        }
-      })
-
-      if (mergedEmployees.length > apiEmployees.length) {
-        setEmployees(mergedEmployees)
-      }
-
-      // Fetch vacations from API
-      const vacResponse = await fetch(`/api/vacations?year=${selectedYear}`)
-      const vacResult = await vacResponse.json()
-      let apiVacations = []
-      if (vacResult.ok) {
-        apiVacations = vacResult.data || []
-      }
-
-      // Also check localStorage for vacation entries
-      let localStorageVacations = []
-      try {
-        const storedVacations = localStorage.getItem('vacation-entries')
-        if (storedVacations) {
-          const parsedVacations = JSON.parse(storedVacations)
-          // Filter for current year and convert format if needed
-          localStorageVacations = parsedVacations.filter(vacation => {
-            const vacationYear = new Date(vacation.date || vacation.start_date).getFullYear()
-            return vacationYear === selectedYear
-          }).map(vacation => ({
-            id: vacation.id || Math.random().toString(),
-            employee_id: vacation.employee_id,
-            start_date: vacation.date || vacation.start_date,
-            end_date: vacation.end_date || vacation.date,
-            working_days: vacation.working_days || 1,
-            note: vacation.reason || vacation.note
-          }))
-        }
-      } catch (error) {
-        console.error('Error parsing localStorage vacations:', error)
-      }
-
-      // Merge vacations
-      const mergedVacations = [...apiVacations, ...localStorageVacations]
-      setVacations(mergedVacations)
-
-      // Fetch holidays for the year
-      const holidayResponse = await fetch(`/api/holidays?region_code=DE&year=${selectedYear}`)
-      const holidayResult = await holidayResponse.json()
-      if (holidayResult.ok) {
-        setHolidays(holidayResult.data || [])
-      }
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -148,8 +140,11 @@ export default function CalendarPage() {
         const currentDate = new Date(year, month, day)
         const dateString = currentDate.toISOString().split('T')[0]
 
-        // Find vacations for this date
-        const dayVacations = vacations.filter(vacation => {
+        // CRITICAL FIX: Find vacations for this date using localStorage
+        const dayVacationsFromStorage = getVacationsForDate(currentDate)
+
+        // Also check the state vacations as backup
+        const dayVacationsFromState = vacations.filter(vacation => {
           const startDate = new Date(vacation.start_date)
           const endDate = new Date(vacation.end_date)
           // Normalize dates to avoid timezone issues
@@ -159,6 +154,22 @@ export default function CalendarPage() {
 
           return currentDateOnly >= startDateOnly && currentDateOnly <= endDateOnly
         })
+
+        // Combine both sources (localStorage is primary)
+        const allDayVacations = [...dayVacationsFromStorage, ...dayVacationsFromState]
+        const uniqueVacations = allDayVacations.filter((vacation, index, self) =>
+          index === self.findIndex(v => v.id === vacation.id)
+        )
+
+        // Convert localStorage format to expected format
+        const dayVacations = uniqueVacations.map((vacation: any) => ({
+          id: vacation.id,
+          employee_id: vacation.employee_id,
+          start_date: vacation.start_date,
+          end_date: vacation.end_date,
+          working_days: vacation.days || vacation.working_days || 1,
+          note: vacation.reason || vacation.note
+        }))
 
         // Find holidays for this date
         const dayHolidays = holidays.filter(holiday => holiday.date === dateString)

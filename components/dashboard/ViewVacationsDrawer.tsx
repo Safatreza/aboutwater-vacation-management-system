@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, Trash2 } from 'lucide-react'
+import { getEmployeeVacations, getVacations, saveVacations, updateEmployeeUsage } from '@/lib/clientStorage'
 
 interface Vacation {
   id: string
   start_date: string
   end_date: string
-  working_days: number
+  working_days?: number
+  days?: number
   note: string | null
+  reason?: string
 }
 
 interface ViewVacationsDrawerProps {
@@ -30,15 +33,42 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
   const fetchVacations = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/vacations?employee_id=${employeeId}&year=${year}`)
-      const result = await response.json()
 
-      if (!result.ok) {
-        throw new Error(result.error || 'Failed to fetch vacations')
+      // CRITICAL FIX: Load from localStorage first (primary source)
+      const localVacations = getEmployeeVacations(employeeId).filter(vacation => {
+        const vacationYear = new Date(vacation.start_date).getFullYear()
+        return vacationYear === year
+      })
+
+      console.log(`📖 Loaded ${localVacations.length} vacations for employee ${employeeId} from localStorage`)
+
+      // Convert to expected format
+      const formattedVacations: Vacation[] = localVacations.map(vacation => ({
+        id: vacation.id,
+        start_date: vacation.start_date,
+        end_date: vacation.end_date,
+        working_days: vacation.days,
+        days: vacation.days,
+        note: vacation.reason,
+        reason: vacation.reason
+      }))
+
+      setVacations(formattedVacations)
+      setError(null)
+
+      // Also try to load from API (secondary source, don't fail if it doesn't work)
+      try {
+        const response = await fetch(`/api/vacations?employee_id=${employeeId}&year=${year}`)
+        const result = await response.json()
+
+        if (result.ok && result.data && result.data.length > 0) {
+          console.log(`📖 Also found ${result.data.length} vacations from API`)
+          // Could merge API data here if needed
+        }
+      } catch (apiError) {
+        console.warn('API fetch failed (localStorage success):', apiError)
       }
 
-      setVacations(result.data || [])
-      setError(null)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
@@ -54,21 +84,38 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     }
 
     try {
-      const response = await fetch(`/api/vacations/${vacationId}`, {
-        method: 'DELETE'
-      })
-      const result = await response.json()
+      // CRITICAL FIX: Delete from localStorage first
+      const allVacations = getVacations()
+      const vacationToDelete = allVacations.find(v => v.id === vacationId)
 
-      if (!result.ok) {
-        throw new Error(result.error || 'Failed to delete vacation')
+      if (!vacationToDelete) {
+        throw new Error('Vacation not found in localStorage')
       }
 
-      alert('Vacation deleted successfully')
+      // Remove vacation from localStorage
+      const updatedVacations = allVacations.filter(v => v.id !== vacationId)
+      saveVacations(updatedVacations)
+
+      // Update employee used days (subtract the deleted vacation days)
+      updateEmployeeUsage(vacationToDelete.employee_id, -vacationToDelete.days)
+
+      console.log('✅ Vacation deleted from localStorage:', vacationId)
+
+      // Also try to delete from API (fallback - doesn't matter if it fails)
+      try {
+        await fetch(`/api/vacations/${vacationId}`, {
+          method: 'DELETE'
+        })
+      } catch (apiError) {
+        console.warn('API delete failed (localStorage success):', apiError)
+      }
+
+      alert('✅ Vacation deleted successfully')
       fetchVacations()
       onUpdate()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      alert(`Failed to delete vacation: ${errorMessage}`)
+      alert(`❌ Failed to delete vacation: ${errorMessage}`)
       console.error('Error deleting vacation:', errorMessage)
     }
   }
@@ -120,7 +167,7 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
                         {vacation.start_date} - {vacation.end_date}
                       </div>
                       <div className="text-sm text-gray-600 mt-1 font-asap">
-                        {vacation.working_days} working days
+                        {vacation.working_days || vacation.days || 0} working days
                       </div>
                     </div>
                     <button
