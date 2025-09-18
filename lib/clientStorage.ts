@@ -20,40 +20,61 @@ export interface StoredVacation {
   created_at: string
 }
 
-// STORAGE KEYS - Versioned for 2025
+// ENHANCED STORAGE KEYS with backup system
 const STORAGE_KEYS = {
-  EMPLOYEES: 'vacation-employees-2025',
-  VACATIONS: 'vacation-entries-2025'
+  EMPLOYEES: 'aboutwater-vacation-employees-2025',
+  VACATIONS: 'aboutwater-vacation-entries-2025',
+  HOLIDAYS: 'aboutwater-holidays-2025'
 } as const
 
-// ROBUST SAVE FUNCTION
+// BULLETPROOF SAVE FUNCTION with verification
 export const saveToStorage = (key: string, data: any): boolean => {
   try {
     if (typeof window === 'undefined') return false
 
-    const serialized = JSON.stringify(data)
-    localStorage.setItem(key, serialized)
-    console.log(`✅ Saved ${key}:`, data)
+    const jsonData = JSON.stringify(data)
+    localStorage.setItem(key, jsonData)
+    console.log(`✅ Successfully saved ${key}:`, data)
+
+    // Verify save worked
+    const verification = localStorage.getItem(key)
+    if (!verification) {
+      throw new Error('Data was not saved to localStorage')
+    }
+
+    // Double-check by parsing
+    JSON.parse(verification)
     return true
   } catch (error) {
     console.error(`❌ Failed to save ${key}:`, error)
+    alert(`Failed to save data: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return false
   }
 }
 
-// ROBUST LOAD FUNCTION
+// BULLETPROOF LOAD FUNCTION with fallback
 export const loadFromStorage = <T>(key: string, defaultValue: T): T => {
   try {
     if (typeof window === 'undefined') return defaultValue
 
     const stored = localStorage.getItem(key)
-    if (!stored) return defaultValue
+    if (!stored) {
+      console.log(`📝 No data found for ${key}, using defaults`)
+      return defaultValue
+    }
 
     const parsed = JSON.parse(stored)
-    console.log(`📖 Loaded ${key}:`, parsed)
+    console.log(`✅ Successfully loaded ${key}:`, parsed)
     return parsed
   } catch (error) {
     console.error(`❌ Failed to load ${key}:`, error)
+    // Try to repair corrupted data
+    try {
+      localStorage.removeItem(key)
+      console.log(`🔧 Removed corrupted data for ${key}`)
+    } catch (cleanupError) {
+      console.error(`❌ Failed to cleanup corrupted data:`, cleanupError)
+    }
     return defaultValue
   }
 }
@@ -118,43 +139,72 @@ export const saveVacations = (vacations: StoredVacation[]): boolean => {
   return saveToStorage(STORAGE_KEYS.VACATIONS, vacations)
 }
 
-export const addVacation = (employeeId: string, vacationData: {
+// BULLETPROOF VACATION ADDITION with immediate persistence verification
+export const addVacationToPersistentStorage = (employeeId: string, vacationData: {
   startDate: string
   endDate: string
   days: number
+  type?: string
   reason?: string
-}): { success: boolean; vacation?: StoredVacation; employee?: StoredEmployee } => {
+}): { success: boolean; vacation?: StoredVacation; employee?: StoredEmployee; employees?: StoredEmployee[]; vacations?: StoredVacation[] } => {
+  console.log('🔄 Adding vacation:', { employeeId, vacationData })
+
   try {
-    // Create vacation entry
+    // Load current data
+    const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES, getDefaultEmployees())
+    const vacations = loadFromStorage(STORAGE_KEYS.VACATIONS, [])
+
+    // Create vacation entry with detailed data
     const newVacation: StoredVacation = {
-      id: Date.now().toString(),
+      id: `vacation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       employee_id: employeeId,
       start_date: vacationData.startDate,
       end_date: vacationData.endDate,
-      days: vacationData.days,
-      reason: vacationData.reason || 'Urlaub',
+      days: parseFloat(vacationData.days.toString()) || 1,
+      reason: vacationData.reason || 'Urlaub (ganzer Tag)',
       created_at: new Date().toISOString()
     }
 
-    // Update vacation list
-    const vacations = getVacations()
+    // Update employee data
+    const employeeIndex = employees.findIndex(emp => emp.id === employeeId || emp.name === employeeId)
+    if (employeeIndex === -1) {
+      console.error(`❌ Employee with ID ${employeeId} not found`)
+      return { success: false }
+    }
+
+    employees[employeeIndex].used = parseFloat(employees[employeeIndex].used.toString()) + parseFloat(newVacation.days.toString())
+    employees[employeeIndex].remaining = parseFloat(employees[employeeIndex].allowance.toString()) - parseFloat(employees[employeeIndex].used.toString())
+    console.log('🔄 Updated employee:', employees[employeeIndex])
+
+    // Add vacation to list
     vacations.push(newVacation)
-    saveVacations(vacations)
 
-    // Update employee usage
-    const updatedEmployee = updateEmployeeUsage(employeeId, vacationData.days)
+    // Save both datasets with verification
+    const employeeSaveSuccess = saveToStorage(STORAGE_KEYS.EMPLOYEES, employees)
+    const vacationSaveSuccess = saveToStorage(STORAGE_KEYS.VACATIONS, vacations)
 
-    console.log('✅ Vacation added successfully:', newVacation)
-    return {
-      success: true,
-      vacation: newVacation,
-      employee: updatedEmployee || undefined
+    if (employeeSaveSuccess && vacationSaveSuccess) {
+      console.log('✅ Vacation successfully added and persisted')
+      return {
+        success: true,
+        vacation: newVacation,
+        employee: employees[employeeIndex],
+        employees,
+        vacations
+      }
+    } else {
+      console.error('❌ Failed to persist vacation data')
+      return { success: false }
     }
   } catch (error) {
     console.error('❌ Failed to add vacation:', error)
+    alert(`Failed to add vacation: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return { success: false }
   }
 }
+
+// Keep the original function for backward compatibility
+export const addVacation = addVacationToPersistentStorage
 
 export const getEmployeeVacations = (employeeId: string): StoredVacation[] => {
   const vacations = getVacations()
@@ -194,6 +244,128 @@ export const initializeStorage = (): void => {
   if (!vacations) {
     saveVacations([])
     console.log('🚀 Initialized empty vacations')
+  }
+}
+
+// EXCEL EXPORT FUNCTIONALITY
+export const generateVacationExcel = async (): Promise<boolean> => {
+  try {
+    // Dynamic import to avoid SSR issues
+    const ExcelJS = (await import('exceljs')).default
+
+    const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES, getDefaultEmployees())
+    const vacations = loadFromStorage(STORAGE_KEYS.VACATIONS, [])
+
+    const workbook = new ExcelJS.Workbook()
+
+    // Sheet 1: Employee Summary
+    const summarySheet = workbook.addWorksheet('Employee Summary')
+    summarySheet.columns = [
+      { header: 'Employee Name', key: 'name', width: 20 },
+      { header: 'Allowed Days', key: 'allowance', width: 15 },
+      { header: 'Used Days', key: 'used', width: 15 },
+      { header: 'Remaining Days', key: 'remaining', width: 15 },
+      { header: 'Usage %', key: 'percentage', width: 15 }
+    ]
+
+    employees.forEach(employee => {
+      const percentage = employee.allowance > 0 ? Math.round((employee.used / employee.allowance) * 100) : 0
+      summarySheet.addRow({
+        name: employee.name,
+        allowance: employee.allowance,
+        used: employee.used,
+        remaining: employee.remaining,
+        percentage: `${percentage}%`
+      })
+    })
+
+    // Format header row
+    summarySheet.getRow(1).font = { bold: true }
+    summarySheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1c5975' }
+    }
+    summarySheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+
+    // Sheet 2: Vacation Details
+    const vacationSheet = workbook.addWorksheet('Vacation Details')
+    vacationSheet.columns = [
+      { header: 'Employee', key: 'employee', width: 20 },
+      { header: 'Start Date', key: 'startDate', width: 15 },
+      { header: 'End Date', key: 'endDate', width: 15 },
+      { header: 'Days Used', key: 'days', width: 15 },
+      { header: 'Reason', key: 'reason', width: 30 },
+      { header: 'Created', key: 'created', width: 20 }
+    ]
+
+    vacations.forEach(vacation => {
+      const employee = employees.find(emp => emp.id === vacation.employee_id)
+      vacationSheet.addRow({
+        employee: employee?.name || vacation.employee_id,
+        startDate: vacation.start_date,
+        endDate: vacation.end_date,
+        days: vacation.days,
+        reason: vacation.reason,
+        created: new Date(vacation.created_at).toLocaleDateString('de-DE')
+      })
+    })
+
+    // Format header row
+    vacationSheet.getRow(1).font = { bold: true }
+    vacationSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1c5975' }
+    }
+    vacationSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+
+    // Sheet 3: Employee Colors (for reference)
+    const colorSheet = workbook.addWorksheet('Employee Colors')
+    colorSheet.columns = [
+      { header: 'Employee Name', key: 'name', width: 20 },
+      { header: 'Color Code', key: 'color', width: 15 },
+      { header: 'Employee ID', key: 'id', width: 15 }
+    ]
+
+    employees.forEach(employee => {
+      colorSheet.addRow({
+        name: employee.name,
+        color: employee.color,
+        id: employee.id
+      })
+    })
+
+    // Format header row
+    colorSheet.getRow(1).font = { bold: true }
+    colorSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1c5975' }
+    }
+    colorSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+
+    // Generate and download Excel file
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    const url = URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `AboutWater_Vacation_Report_${new Date().toISOString().split('T')[0]}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    console.log('✅ Excel report downloaded successfully')
+    return true
+  } catch (error) {
+    console.error('❌ Failed to generate Excel report:', error)
+    alert(`Failed to generate Excel report: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    return false
   }
 }
 

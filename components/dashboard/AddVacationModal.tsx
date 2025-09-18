@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Calendar } from 'lucide-react'
-import { addVacation } from '@/lib/clientStorage'
+import { X, Calendar, AlertTriangle } from 'lucide-react'
+import { addVacation, getEmployees } from '@/lib/clientStorage'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -16,13 +16,85 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
   const [endDate, setEndDate] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<string[]>([])
+
+  // Get employee data for validation
+  const employee = getEmployees().find(emp => emp.id === employeeId)
+
+  // COMPREHENSIVE VALIDATION FUNCTION
+  const validateForm = (): string[] => {
+    const validationErrors: string[] = []
+
+    // Check if dates are provided
+    if (!startDate) validationErrors.push('Start date is required')
+    if (!endDate) validationErrors.push('End date is required')
+
+    if (startDate && endDate) {
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+
+      // Check date logic
+      if (end < start) {
+        validationErrors.push('End date must be after or equal to start date')
+      }
+
+      // Check if dates are in the past (warn but don't block)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (start < today) {
+        validationErrors.push('Warning: Start date is in the past')
+      }
+
+      // Check if vacation is too long (more than 30 days)
+      const dayCount = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      if (dayCount > 30) {
+        validationErrors.push('Warning: Vacation is longer than 30 days')
+      }
+      if (dayCount <= 0) {
+        validationErrors.push('Vacation must be at least 1 day')
+      }
+
+      // Check employee's remaining vacation days
+      if (employee) {
+        const remainingDays = employee.remaining
+        if (dayCount > remainingDays) {
+          validationErrors.push(`Warning: This vacation (${dayCount} days) exceeds remaining vacation days (${remainingDays} days)`)
+        }
+      }
+    }
+
+    // Check employee exists
+    if (!employee) {
+      validationErrors.push('Employee not found')
+    }
+
+    return validationErrors
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrors([])
 
-    if (new Date(endDate) < new Date(startDate)) {
-      alert('End date must be after start date')
+    // Validate form
+    const validationErrors = validateForm()
+    const criticalErrors = validationErrors.filter(error =>
+      !error.startsWith('Warning:') &&
+      error !== 'Start date is in the past'
+    )
+
+    if (criticalErrors.length > 0) {
+      setErrors(validationErrors)
       return
+    }
+
+    // Show warnings but allow to continue
+    const warnings = validationErrors.filter(error => error.startsWith('Warning:'))
+    if (warnings.length > 0) {
+      const proceed = confirm(`The following warnings were found:\n\n${warnings.join('\n')}\n\nDo you want to continue?`)
+      if (!proceed) {
+        setErrors(validationErrors)
+        return
+      }
     }
 
     setLoading(true)
@@ -87,6 +159,35 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Error Display */}
+        {errors.length > 0 && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <div className="flex">
+              <AlertTriangle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-red-800 font-asap">Validation Issues:</h4>
+                <ul className="mt-1 text-sm text-red-700 space-y-1">
+                  {errors.map((error, index) => (
+                    <li key={index} className="font-asap">
+                      {error.startsWith('Warning:') ? '⚠️ ' : '❌ '}
+                      {error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Employee Info Display */}
+        {employee && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="text-sm text-blue-800 font-asap">
+              <strong>{employee.name}</strong> - Remaining: {employee.remaining} days ({employee.used}/{employee.allowance} used)
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

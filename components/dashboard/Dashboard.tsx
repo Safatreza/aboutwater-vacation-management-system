@@ -12,7 +12,7 @@ import AddVacationModal from './AddVacationModal'
 import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
-import { getEmployees, getVacations, initializeStorage } from '@/lib/clientStorage'
+import { getEmployees, getVacations, initializeStorage, generateVacationExcel } from '@/lib/clientStorage'
 
 export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -198,23 +198,16 @@ export default function Dashboard() {
     setShowViewVacations(true)
   }
 
-  const handleManualBackup = async () => {
+  const handleExcelDownload = async () => {
     setBackingUp(true)
     try {
-      const response = await fetch('/api/backup', {
-        method: 'POST'
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        alert('Backup completed successfully! The data has been sent to safat.majumder@aboutwater.de')
-      } else {
-        alert('Backup failed: ' + result.message)
+      const success = await generateVacationExcel()
+      if (success) {
+        alert('Excel backup downloaded successfully! Check your Downloads folder.')
       }
     } catch (error) {
-      alert('Backup failed: Network error')
-      console.error('Backup error:', error)
+      console.error('Excel download error:', error)
+      alert('Excel download failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setBackingUp(false)
     }
@@ -256,12 +249,12 @@ export default function Dashboard() {
             {/* Right side - Action Buttons */}
             <div className="flex items-center space-x-2">
               <button
-                onClick={handleManualBackup}
+                onClick={handleExcelDownload}
                 disabled={backingUp}
                 className="btn-aboutwater-outline disabled:opacity-50"
               >
-                <Database className={`h-4 w-4 mr-2 ${backingUp ? 'animate-pulse' : ''}`} />
-                {backingUp ? 'Sicherung läuft...' : 'Backup'}
+                <Download className={`h-4 w-4 mr-2 ${backingUp ? 'animate-pulse' : ''}`} />
+                {backingUp ? 'Export läuft...' : 'Excel Export'}
               </button>
 
               <button

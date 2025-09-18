@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 
 interface Employee {
-  employee_id: string
-  employee_name: string
+  id: string
+  name: string
   color: string
 }
 
@@ -263,7 +263,7 @@ export default function VacationCalendar({ year, employees, vacations }: Vacatio
         <h3 className="text-sm font-semibold text-gray-900 font-asap mb-3">Mitarbeiter-Farbkodierung (Hochkontrast)</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {employees.map(employee => (
-            <div key={employee.employee_id} className="flex items-center bg-white px-3 py-2 rounded-md shadow-sm border border-gray-300">
+            <div key={employee.id} className="flex items-center bg-white px-3 py-2 rounded-md shadow-sm border border-gray-300">
               <div
                 className="w-5 h-5 rounded mr-2 border-2 border-gray-400"
                 style={{ backgroundColor: employee.color }}
@@ -272,7 +272,7 @@ export default function VacationCalendar({ year, employees, vacations }: Vacatio
                 className="text-sm font-bold font-asap"
                 style={{ color: employee.color }}
               >
-                {employee.employee_name}
+                {employee.name}
               </span>
             </div>
           ))}
