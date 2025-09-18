@@ -654,9 +654,9 @@ export const mockDb = {
     if (employeeIndex !== -1) {
       const employee = employees[employeeIndex]
 
-      // Handle clientStorage format vs database format
-      const currentUsed = employee.used || employee.used_vacation_days || 0
-      const allowance = employee.allowance || employee.allowance_days
+      // Handle clientStorage format vs database format safely
+      const currentUsed = (employee as any).used || employee.used_vacation_days || 0
+      const allowance = (employee as any).allowance || employee.allowance_days
       const newUsedDays = currentUsed + vacation.working_days
       const newRemainingDays = allowance - newUsedDays
 
@@ -667,12 +667,8 @@ export const mockDb = {
         used_vacation_days: newUsedDays,
         remaining_vacation: newRemainingDays,
         allowance_days: allowance,
-        // ClientStorage format
-        used: newUsedDays,
-        remaining: newRemainingDays,
-        allowance: allowance,
         updated_at: new Date().toISOString()
-      }
+      } as any
 
       saveToStorage(STORAGE_KEYS.employees, employees)
       console.log(`🔄 Updated employee ${employee.name}: used ${newUsedDays}, remaining ${newRemainingDays}`)
@@ -699,9 +695,9 @@ export const mockDb = {
     if (employeeIndex !== -1) {
       const employee = employees[employeeIndex]
 
-      // Handle clientStorage format vs database format
-      const currentUsed = employee.used || employee.used_vacation_days || 0
-      const allowance = employee.allowance || employee.allowance_days
+      // Handle clientStorage format vs database format safely
+      const currentUsed = (employee as any).used || employee.used_vacation_days || 0
+      const allowance = (employee as any).allowance || employee.allowance_days
       const newUsedDays = Math.max(0, currentUsed - vacation.working_days)
       const newRemainingDays = allowance - newUsedDays
 
@@ -712,12 +708,8 @@ export const mockDb = {
         used_vacation_days: newUsedDays,
         remaining_vacation: newRemainingDays,
         allowance_days: allowance,
-        // ClientStorage format
-        used: newUsedDays,
-        remaining: newRemainingDays,
-        allowance: allowance,
         updated_at: new Date().toISOString()
-      }
+      } as any
 
       saveToStorage(STORAGE_KEYS.employees, employees)
       console.log(`🔄 Updated employee ${employee.name} after deletion: used ${newUsedDays}, remaining ${newRemainingDays}`)
