@@ -50,47 +50,57 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse<Va
         .eq('active', true)
 
       if (employees && employees.length > 0) {
+        // Type for employee data from Supabase
+        type EmployeeData = { id: string; name: string }
+        const typedEmployees = employees as EmployeeData[]
+
         // Create sample vacation entries
+        const andreasId = typedEmployees.find(e => e.name === 'Andreas Pöppe')?.id
+        const carmenId = typedEmployees.find(e => e.name === 'Carmen Berger')?.id
+        const florianId = typedEmployees.find(e => e.name === 'Florian Gräf')?.id
+        const petraId = typedEmployees.find(e => e.name === 'Petra Gräf')?.id
+        const hannesId = typedEmployees.find(e => e.name === 'Hannes Kolm')?.id
+
         const sampleVacations = [
-          {
-            employee_id: employees.find(e => e.name === 'Andreas Pöppe')?.id,
+          andreasId && {
+            employee_id: andreasId,
             start_date: '2025-03-10',
             end_date: '2025-03-14',
             working_days: 5,
             note: 'Spring Break'
           },
-          {
-            employee_id: employees.find(e => e.name === 'Carmen Berger')?.id,
+          carmenId && {
+            employee_id: carmenId,
             start_date: '2025-06-15',
             end_date: '2025-06-20',
             working_days: 4,
             note: 'Summer Vacation'
           },
-          {
-            employee_id: employees.find(e => e.name === 'Florian Gräf')?.id,
+          florianId && {
+            employee_id: florianId,
             start_date: '2025-07-07',
             end_date: '2025-07-18',
             working_days: 10,
             note: 'Summer Holiday'
           },
-          {
-            employee_id: employees.find(e => e.name === 'Petra Gräf')?.id,
+          petraId && {
+            employee_id: petraId,
             start_date: '2025-08-25',
             end_date: '2025-08-29',
             working_days: 5,
             note: 'Late Summer Break'
           },
-          {
-            employee_id: employees.find(e => e.name === 'Hannes Kolm')?.id,
+          hannesId && {
+            employee_id: hannesId,
             start_date: '2025-12-23',
             end_date: '2025-12-30',
             working_days: 6,
             note: 'Christmas Holidays'
           }
-        ].filter(v => v.employee_id) // Only include vacations where employee was found
+        ].filter(Boolean) // Remove null entries
 
         if (sampleVacations.length > 0) {
-          const { error: insertError } = await supabase
+          const { error: insertError } = await (supabase as any)
             .from('vacations')
             .insert(sampleVacations)
 
