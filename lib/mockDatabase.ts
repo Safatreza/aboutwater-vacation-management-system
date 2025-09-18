@@ -510,7 +510,24 @@ export const mockDb = {
   // Employee operations
   async getEmployees(): Promise<Employee[]> {
     const employees = loadFromStorage(STORAGE_KEYS.employees, mockEmployees)
-    return employees.filter((emp: Employee) => emp.active)
+
+    // Convert clientStorage format to database format if needed
+    const convertedEmployees = employees.map((emp: any) => {
+      // Handle both formats: clientStorage {allowance, used, remaining} and database {allowance_days, used_vacation_days, remaining_vacation}
+      if (emp.allowance !== undefined && emp.allowance_days === undefined) {
+        // Convert from clientStorage format
+        return {
+          ...emp,
+          allowance_days: emp.allowance,
+          used_vacation_days: emp.used,
+          remaining_vacation: emp.remaining,
+          active: true
+        }
+      }
+      return emp
+    })
+
+    return convertedEmployees.filter((emp: Employee) => emp.active)
   },
 
   async getEmployee(id: string): Promise<Employee | null> {
@@ -585,18 +602,33 @@ export const mockDb = {
   async getVacations(employeeId?: string, year?: number): Promise<Vacation[]> {
     let vacations = loadFromStorage(STORAGE_KEYS.vacations, mockVacations)
 
+    // Convert clientStorage format to database format if needed
+    const convertedVacations = vacations.map((vac: any) => {
+      // Handle both formats: clientStorage {days, reason} and database {working_days, note}
+      if (vac.days !== undefined && vac.working_days === undefined) {
+        return {
+          ...vac,
+          working_days: vac.days,
+          note: vac.reason || null
+        }
+      }
+      return vac
+    })
+
+    let filteredVacations = convertedVacations
+
     if (employeeId) {
-      vacations = vacations.filter((vac: Vacation) => vac.employee_id === employeeId)
+      filteredVacations = filteredVacations.filter((vac: Vacation) => vac.employee_id === employeeId)
     }
 
     if (year) {
-      vacations = vacations.filter((vac: Vacation) => {
+      filteredVacations = filteredVacations.filter((vac: Vacation) => {
         const vacYear = new Date(vac.start_date).getFullYear()
         return vacYear === year
       })
     }
 
-    return vacations
+    return filteredVacations
   },
 
   async createVacation(data: VacationInsert): Promise<Vacation> {
@@ -617,22 +649,33 @@ export const mockDb = {
     vacations.push(vacation)
     saveToStorage(STORAGE_KEYS.vacations, vacations)
 
-    // CRITICAL: Update employee's vacation totals
-    const employeeIndex = employees.findIndex((emp: Employee) => emp.id === data.employee_id)
+    // CRITICAL: Update employee's vacation totals - Handle both formats
+    const employeeIndex = employees.findIndex((emp: any) => emp.id === data.employee_id)
     if (employeeIndex !== -1) {
       const employee = employees[employeeIndex]
-      const newUsedDays = (employee.used_vacation_days || 0) + vacation.working_days
-      const newRemainingDays = employee.allowance_days - newUsedDays
 
+      // Handle clientStorage format vs database format
+      const currentUsed = employee.used || employee.used_vacation_days || 0
+      const allowance = employee.allowance || employee.allowance_days
+      const newUsedDays = currentUsed + vacation.working_days
+      const newRemainingDays = allowance - newUsedDays
+
+      // Update in both formats to ensure compatibility
       employees[employeeIndex] = {
         ...employee,
+        // Database format
         used_vacation_days: newUsedDays,
         remaining_vacation: newRemainingDays,
+        allowance_days: allowance,
+        // ClientStorage format
+        used: newUsedDays,
+        remaining: newRemainingDays,
+        allowance: allowance,
         updated_at: new Date().toISOString()
       }
 
       saveToStorage(STORAGE_KEYS.employees, employees)
-      console.log(`Updated employee ${employee.name}: used ${newUsedDays}, remaining ${newRemainingDays}`)
+      console.log(`🔄 Updated employee ${employee.name}: used ${newUsedDays}, remaining ${newRemainingDays}`)
     }
 
     return vacation
@@ -651,22 +694,33 @@ export const mockDb = {
     vacations.splice(vacationIndex, 1)
     saveToStorage(STORAGE_KEYS.vacations, vacations)
 
-    // CRITICAL: Update employee's vacation totals when deleting vacation
-    const employeeIndex = employees.findIndex((emp: Employee) => emp.id === vacation.employee_id)
+    // CRITICAL: Update employee's vacation totals when deleting vacation - Handle both formats
+    const employeeIndex = employees.findIndex((emp: any) => emp.id === vacation.employee_id)
     if (employeeIndex !== -1) {
       const employee = employees[employeeIndex]
-      const newUsedDays = Math.max(0, (employee.used_vacation_days || 0) - vacation.working_days)
-      const newRemainingDays = employee.allowance_days - newUsedDays
 
+      // Handle clientStorage format vs database format
+      const currentUsed = employee.used || employee.used_vacation_days || 0
+      const allowance = employee.allowance || employee.allowance_days
+      const newUsedDays = Math.max(0, currentUsed - vacation.working_days)
+      const newRemainingDays = allowance - newUsedDays
+
+      // Update in both formats to ensure compatibility
       employees[employeeIndex] = {
         ...employee,
+        // Database format
         used_vacation_days: newUsedDays,
         remaining_vacation: newRemainingDays,
+        allowance_days: allowance,
+        // ClientStorage format
+        used: newUsedDays,
+        remaining: newRemainingDays,
+        allowance: allowance,
         updated_at: new Date().toISOString()
       }
 
       saveToStorage(STORAGE_KEYS.employees, employees)
-      console.log(`Updated employee ${employee.name} after deletion: used ${newUsedDays}, remaining ${newRemainingDays}`)
+      console.log(`🔄 Updated employee ${employee.name} after deletion: used ${newUsedDays}, remaining ${newRemainingDays}`)
     }
 
     return { success: true, vacation }
@@ -719,10 +773,10 @@ export const mockDb = {
   }
 }
 
-// localStorage persistence for client-side storage
+// localStorage persistence for client-side storage - UNIFIED KEYS with clientStorage.ts
 const STORAGE_KEYS = {
-  employees: 'aboutwater_employees',
-  vacations: 'aboutwater_vacations',
+  employees: 'vacation-employees-2025',
+  vacations: 'vacation-entries-2025',
   holidays: 'aboutwater_holidays'
 }
 
