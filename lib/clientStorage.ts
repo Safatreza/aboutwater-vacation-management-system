@@ -27,7 +27,7 @@ const STORAGE_KEYS = {
   HOLIDAYS: 'aboutwater-holidays-2025'
 } as const
 
-// BULLETPROOF SAVE FUNCTION with verification
+// BULLETPROOF SAVE FUNCTION with verification and event dispatch
 export const saveToStorage = (key: string, data: any): boolean => {
   try {
     if (typeof window === 'undefined') return false
@@ -44,6 +44,14 @@ export const saveToStorage = (key: string, data: any): boolean => {
 
     // Double-check by parsing
     JSON.parse(verification)
+
+    // Dispatch custom event for same-tab updates
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('localStorageUpdate', {
+        detail: { key, data }
+      }))
+    }
+
     return true
   } catch (error) {
     console.error(`❌ Failed to save ${key}:`, error)

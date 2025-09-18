@@ -135,7 +135,15 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
         console.warn('API save failed (localStorage success):', apiError)
       }
 
-      alert(`✅ Vacation added successfully!\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\nRemaining: ${result.employee?.remaining || 'N/A'} days`)
+      // Show success message with updated info
+      alert(`✅ Vacation added successfully!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\nNew Used: ${result.employee?.used || 'N/A'} days\nRemaining: ${result.employee?.remaining || 'N/A'} days`)
+
+      // Clear form
+      setStartDate('')
+      setEndDate('')
+      setNote('')
+
+      // Trigger parent refresh
       onSuccess()
       onClose()
     } catch (err) {

@@ -51,6 +51,30 @@ export default function Dashboard() {
     fetchEmployeesAndVacations()
   }, [selectedYear, refreshKey])
 
+  // Listen for localStorage changes for real-time updates
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('vacation-employees') || e.key.includes('vacation-entries'))) {
+        console.log('🔄 Dashboard: localStorage changed, refreshing data')
+        fetchEmployeesAndVacations()
+      }
+    }
+
+    // Listen for custom events (same-tab changes)
+    const handleCustomStorageChange = () => {
+      console.log('🔄 Dashboard: Custom storage event, refreshing data')
+      fetchEmployeesAndVacations()
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('localStorageUpdate', handleCustomStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('localStorageUpdate', handleCustomStorageChange)
+    }
+  }, [selectedYear])
+
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {

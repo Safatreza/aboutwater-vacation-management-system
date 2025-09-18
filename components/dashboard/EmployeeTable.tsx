@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, Eye, Users, Trash2, RefreshCw } from 'lucide-react'
+import { getEmployees, getVacations } from '@/lib/clientStorage'
 
 interface EmployeeSummary {
   employee_id: string
@@ -31,19 +32,43 @@ export default function EmployeeTable({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch employee summaries
+  // Fetch employee summaries from localStorage first, then API as backup
   const fetchEmployees = async () => {
     try {
       setLoading(true)
       setError(null)
-      
+
+      // PRIMARY: Get data from localStorage for instant updates
+      const localEmployees = getEmployees()
+      const localVacations = getVacations()
+
+      if (localEmployees && localEmployees.length > 0) {
+        console.log(`📖 EmployeeTable: Loading ${localEmployees.length} employees from localStorage`)
+
+        // Convert localStorage format to EmployeeTable format
+        const employeeSummaries: EmployeeSummary[] = localEmployees.map(emp => ({
+          employee_id: emp.id,
+          employee_name: emp.name,
+          vacation_allowance: emp.allowance,
+          used_days: emp.used,
+          remaining_days: emp.remaining,
+          color: emp.color
+        }))
+
+        setEmployees(employeeSummaries)
+        setLoading(false)
+        return
+      }
+
+      // FALLBACK: If localStorage is empty, try API
+      console.log('📡 EmployeeTable: Falling back to API data')
       const response = await fetch(`/api/employees/summary?year=${year}`)
       const result = await response.json()
-      
+
       if (!result.ok) {
         throw new Error(result.error || 'Failed to fetch employees')
       }
-      
+
       setEmployees(result.data || [])
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
@@ -58,6 +83,32 @@ export default function EmployeeTable({
   useEffect(() => {
     fetchEmployees()
   }, [year, refreshKey])
+
+  // Listen for localStorage changes for real-time updates
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('vacation-employees') || e.key.includes('vacation-entries'))) {
+        console.log('🔄 EmployeeTable: localStorage changed, refreshing data')
+        fetchEmployees()
+      }
+    }
+
+    // Listen for storage events (cross-tab changes)
+    window.addEventListener('storage', handleStorageChange)
+
+    // Also listen for custom events (same-tab changes)
+    const handleCustomStorageChange = () => {
+      console.log('🔄 EmployeeTable: Custom storage event, refreshing data')
+      fetchEmployees()
+    }
+
+    window.addEventListener('localStorageUpdate', handleCustomStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('localStorageUpdate', handleCustomStorageChange)
+    }
+  }, [year])
 
   const handleDeleteEmployee = async (employeeId: string, employeeName: string) => {
     if (!window.confirm(`Are you sure you want to delete ${employeeName}? This action cannot be undone.`)) {
