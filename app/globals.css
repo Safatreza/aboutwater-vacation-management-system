@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=ASAP:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+:root {
+  /* AboutWater Brand Colors */
+  --aboutwater-primary: #1c5975;
+  --aboutwater-primary-dark: #164962;
+  --aboutwater-primary-light: #2a7da2;
+  --aboutwater-secondary: #e0f2fe;
+  --aboutwater-accent: #0ea5e9;
+  
+  /* Extended Color Palette */
+  --aboutwater-gray-50: #f8fafc;
+  --aboutwater-gray-100: #f1f5f9;
+  --aboutwater-gray-200: #e2e8f0;
+  --aboutwater-gray-300: #cbd5e1;
+  --aboutwater-gray-400: #94a3b8;
+  --aboutwater-gray-500: #64748b;
+  --aboutwater-gray-600: #475569;
+  --aboutwater-gray-700: #334155;
+  --aboutwater-gray-800: #1e293b;
+  --aboutwater-gray-900: #0f172a;
+  
+  /* Success, Warning, Error Colors */
+  --aboutwater-success: #10b981;
+  --aboutwater-warning: #f59e0b;
+  --aboutwater-error: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'ASAP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background: linear-gradient(135deg, rgba(28, 89, 117, 0.4) 0%, rgba(42, 125, 162, 0.3) 100%),
+              url('/images/background.jpg') center center/cover no-repeat fixed;
+  background-attachment: fixed;
+  color: var(--aboutwater-gray-800);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* AboutWater Button Styles */
+.btn-aboutwater {
+  @apply bg-[#1c5975] hover:bg-[#164962] text-white font-medium py-2.5 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md;
+}
+
+.btn-aboutwater-outline {
+  @apply border-2 border-[#1c5975] text-[#1c5975] hover:bg-[#1c5975] hover:text-white font-medium py-2.5 px-6 rounded-lg transition-all duration-200;
+}
+
+.btn-aboutwater-ghost {
+  @apply text-[#1c5975] hover:bg-[#1c5975]/10 font-medium py-2.5 px-6 rounded-lg transition-all duration-200;
+}
+
+/* AboutWater Card Styles */
+.card-aboutwater {
+  @apply bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200;
+}
+
+.card-aboutwater-header {
+  @apply bg-gradient-to-r from-[#1c5975] to-[#2a7da2] text-white px-6 py-4 rounded-t-xl;
+}
+
+/* AboutWater Form Styles */
+.input-aboutwater {
+  @apply border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1c5975] focus:border-transparent transition-all duration-200;
+}
+
+.label-aboutwater {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+/* AboutWater Status Badges */
+.badge-aboutwater-success {
+  @apply bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full;
+}
+
+.badge-aboutwater-warning {
+  @apply bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full;
+}
+
+.badge-aboutwater-error {
+  @apply bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full;
+}
+
+.badge-aboutwater-info {
+  @apply bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full;
+}
+
+/* AboutWater Table Styles */
+.table-aboutwater {
+  @apply w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm;
+}
+
+.table-aboutwater th {
+  @apply bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+}
+
+.table-aboutwater td {
+  @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b border-gray-200;
+}
+
+.table-aboutwater tr:hover {
+  @apply bg-gray-50;
+}
+
+/* AboutWater Typography */
+.heading-aboutwater {
+  @apply text-[#1c5975] font-semibold;
+}
+
+.text-aboutwater-primary {
+  @apply text-[#1c5975];
+}
+
+.text-aboutwater-secondary {
+  @apply text-gray-600;
+}
+
+/* AboutWater Navigation */
+.nav-aboutwater {
+  @apply bg-white border-b border-gray-200 shadow-sm;
+}
+
+.nav-aboutwater-item {
+  @apply px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#1c5975] hover:bg-gray-50 rounded-md transition-all duration-200;
+}
+
+.nav-aboutwater-item.active {
+  @apply text-[#1c5975] bg-[#1c5975]/10;
+}
+
+/* AboutWater Loading States */
+.loading-aboutwater {
+  @apply animate-pulse bg-gray-200 rounded;
+}
+
+/* AboutWater Gradients */
+.gradient-aboutwater {
+  background: linear-gradient(135deg, var(--aboutwater-primary) 0%, var(--aboutwater-primary-light) 100%);
+}
+
+.gradient-aboutwater-subtle {
+  background: linear-gradient(135deg, var(--aboutwater-gray-50) 0%, var(--aboutwater-secondary) 100%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--aboutwater-gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--aboutwater-gray-400);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--aboutwater-primary);
+}
