@@ -22,7 +22,7 @@ const sampleEmployees = [
   { name: 'Maria Gonzalez', email: 'maria.gonzalez@aboutwater.de', allowance_days: 27, used_days: 5 },
   { name: 'Lukas Fischer', email: 'lukas.fischer@aboutwater.de', allowance_days: 30, used_days: 18 },
   { name: 'Petra Müller', email: 'petra.mueller@aboutwater.de', allowance_days: 25, used_days: 10 },
-  { name: 'Safat Majumder', email: 'safat.majumder@aboutwater.de', allowance_days: 30, used_days: 7 }
+  { name: 'Safat Majumder', email: 'safat.majumder@aboutwater.de', allowance_days: 28, used_days: 0 }
 ]
 
 // Sample vacation data (will be created after employees)

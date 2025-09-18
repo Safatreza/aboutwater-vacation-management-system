@@ -266,9 +266,9 @@ let mockEmployees: Employee[] = [
   {
     id: '22',
     name: 'Safat Majumder',
-    allowance_days: 30.0,
-    used_vacation_days: 7.0,
-    remaining_vacation: 23.0,
+    allowance_days: 28.0,
+    used_vacation_days: 0.0,
+    remaining_vacation: 28.0,
     region_code: 'DE',
     color: '#FF4500',
     active: true,
@@ -277,7 +277,59 @@ let mockEmployees: Employee[] = [
   }
 ]
 
-let mockVacations: Vacation[] = []
+// Sample vacation data for demonstration
+let mockVacations: Vacation[] = [
+  {
+    id: 'vacation-1',
+    employee_id: '1', // Andreas Pöppe
+    start_date: '2025-03-10',
+    end_date: '2025-03-14',
+    working_days: 5,
+    note: 'Spring Break',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'vacation-2',
+    employee_id: '4', // Carmen Berger
+    start_date: '2025-06-15',
+    end_date: '2025-06-20',
+    working_days: 4,
+    note: 'Summer Vacation',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'vacation-3',
+    employee_id: '10', // Florian Gräf
+    start_date: '2025-07-07',
+    end_date: '2025-07-18',
+    working_days: 10,
+    note: 'Summer Holiday',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'vacation-4',
+    employee_id: '18', // Petra Gräf
+    start_date: '2025-08-25',
+    end_date: '2025-08-29',
+    working_days: 5,
+    note: 'Late Summer Break',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'vacation-5',
+    employee_id: '12', // Hannes Kolm
+    start_date: '2025-12-23',
+    end_date: '2025-12-30',
+    working_days: 6,
+    note: 'Christmas Holidays',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+]
 
 // Complete Bavaria holidays and school breaks for 2025
 let mockHolidays: Holiday[] = [

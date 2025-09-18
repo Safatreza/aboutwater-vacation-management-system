@@ -33,7 +33,76 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse<Va
         requestId
       })
     }
-    
+
+    // Check if we need to initialize with sample vacation data
+    const { data: vacationCheck } = await supabase
+      .from('vacations')
+      .select('id')
+      .limit(1)
+
+    if (!vacationCheck || vacationCheck.length === 0) {
+      console.log(`[${requestId}] Initializing database with sample vacation data`)
+
+      // Get employees to map vacation data
+      const { data: employees } = await supabase
+        .from('employees')
+        .select('id, name')
+        .eq('active', true)
+
+      if (employees && employees.length > 0) {
+        // Create sample vacation entries
+        const sampleVacations = [
+          {
+            employee_id: employees.find(e => e.name === 'Andreas Pöppe')?.id,
+            start_date: '2025-03-10',
+            end_date: '2025-03-14',
+            working_days: 5,
+            note: 'Spring Break'
+          },
+          {
+            employee_id: employees.find(e => e.name === 'Carmen Berger')?.id,
+            start_date: '2025-06-15',
+            end_date: '2025-06-20',
+            working_days: 4,
+            note: 'Summer Vacation'
+          },
+          {
+            employee_id: employees.find(e => e.name === 'Florian Gräf')?.id,
+            start_date: '2025-07-07',
+            end_date: '2025-07-18',
+            working_days: 10,
+            note: 'Summer Holiday'
+          },
+          {
+            employee_id: employees.find(e => e.name === 'Petra Gräf')?.id,
+            start_date: '2025-08-25',
+            end_date: '2025-08-29',
+            working_days: 5,
+            note: 'Late Summer Break'
+          },
+          {
+            employee_id: employees.find(e => e.name === 'Hannes Kolm')?.id,
+            start_date: '2025-12-23',
+            end_date: '2025-12-30',
+            working_days: 6,
+            note: 'Christmas Holidays'
+          }
+        ].filter(v => v.employee_id) // Only include vacations where employee was found
+
+        if (sampleVacations.length > 0) {
+          const { error: insertError } = await supabase
+            .from('vacations')
+            .insert(sampleVacations)
+
+          if (insertError) {
+            console.warn(`[${requestId}] Error initializing sample vacations:`, insertError)
+          } else {
+            console.log(`[${requestId}] Successfully initialized ${sampleVacations.length} sample vacation entries`)
+          }
+        }
+      }
+    }
+
     let query = supabase
       .from('vacations')
       .select(`

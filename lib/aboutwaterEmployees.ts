@@ -60,7 +60,7 @@ export const EMPLOYEE_2025_DATA: Record<string, { allowance_days: number; used_v
   '19': { allowance_days: 32.5, used_vacation_days: 28.0, remaining_vacation: 4.5 },
   '20': { allowance_days: 41.0, used_vacation_days: 31.0, remaining_vacation: 10.0 },
   '21': { allowance_days: 37.0, used_vacation_days: 28.0, remaining_vacation: 9.0 },
-  '22': { allowance_days: 30.0, used_vacation_days: 7.0, remaining_vacation: 23.0 }
+  '22': { allowance_days: 28.0, used_vacation_days: 0.0, remaining_vacation: 28.0 }
 }
 
 // Default vacation allowance for new employees
