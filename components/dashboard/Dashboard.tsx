@@ -13,7 +13,8 @@ import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
 import ExcelImportModal from './ExcelImportModal'
-import { getEmployees, getVacations, initializeEmployeesInDatabase, testConnection, generateExcelFromDatabase } from '@/lib/database'
+import { getEmployees, getVacations, getConnectionStatus } from '@/lib/hybridStorage'
+import { generateExcelFromDatabase } from '@/lib/database'
 
 export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -33,6 +34,7 @@ export default function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<any>(null)
 
   // Dynamic employee and vacation data from API
   const [employees, setEmployees] = useState<any[]>([])
@@ -46,19 +48,17 @@ export default function Dashboard() {
     '#DC2626', '#7C3AED', '#DB2777', '#374151', '#047857'
   ]
 
-  // Fetch employees and vacations data from REAL database
+  // Fetch employees and vacations data from hybrid storage
   useEffect(() => {
-    // Test connection and initialize database
-    const initializeDatabase = async () => {
-      const connected = await testConnection()
-      if (connected) {
-        await initializeEmployeesInDatabase()
-        fetchEmployeesAndVacations()
-      } else {
-        alert('❌ Database connection failed! Check Supabase configuration.')
-      }
+    const loadData = async () => {
+      // Check connection status
+      const status = await getConnectionStatus()
+      setConnectionStatus(status)
+
+      // Load data regardless of connection status
+      fetchEmployeesAndVacations()
     }
-    initializeDatabase()
+    loadData()
   }, [selectedYear, refreshKey])
 
   // Listen for database changes for real-time updates
@@ -75,7 +75,7 @@ export default function Dashboard() {
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {
-      // CRITICAL FIX: Load from REAL Supabase database (multi-user persistence)
+      // Use hybrid storage system (Supabase with localStorage fallback)
       const dbEmployees = await getEmployees()
       const dbVacations = await getVacations()
 
@@ -85,18 +85,18 @@ export default function Dashboard() {
         return vacationYear === selectedYear
       })
 
-      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations from database`)
+      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations`)
 
       // Convert database format to dashboard format
       const employeesWithColors = dbEmployees.map((emp: any, index: number) => ({
         id: emp.id,
         name: emp.name,
-        allowance_days: emp.allowance,
-        used_vacation_days: emp.used,
-        remaining_vacation: emp.remaining,
+        allowance_days: emp.allowance || emp.allowance_days,
+        used_vacation_days: emp.used || emp.used_days,
+        remaining_vacation: emp.remaining || emp.remaining_days,
         region_code: 'DE',
         active: true,
-        color: emp.color || defaultEmployeeColors[index % defaultEmployeeColors.length]
+        color: emp.color || emp.color_code || defaultEmployeeColors[index % defaultEmployeeColors.length]
       }))
       setEmployees(employeesWithColors)
 
@@ -110,8 +110,8 @@ export default function Dashboard() {
           end_date: vacation.end_date,
           working_days: vacation.days_count || vacation.days,
           note: vacation.reason,
-          employeeName: emp?.name || 'Unknown',
-          color: emp?.color || '#1c5975',
+          employeeName: emp?.name || vacation.employees?.name || 'Unknown',
+          color: emp?.color || vacation.employees?.color_code || '#1c5975',
           dates: generateDateRange(vacation.start_date, vacation.end_date)
         }
       })
@@ -130,7 +130,7 @@ export default function Dashboard() {
 
       setVacations(vacationDates)
     } catch (error) {
-      console.error('Error fetching data from database:', error)
+      console.error('Error fetching data:', error)
       setEmployees([])
       setVacations([])
     } finally {
@@ -238,22 +238,34 @@ export default function Dashboard() {
                 <p className="text-sm text-gray-500 mt-1">Urlaubsübersicht für Mitarbeiter</p>
               </div>
               
-              <div className="flex items-center space-x-2">
-                <label className="label-aboutwater mb-0">Jahr:</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  className="input-aboutwater w-24 py-1.5"
-                >
-                  {Array.from({ length: 5 }, (_, i) => {
-                    const year = new Date().getFullYear() + i - 1
-                    return (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    )
-                  })}
-                </select>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <label className="label-aboutwater mb-0">Jahr:</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    className="input-aboutwater w-24 py-1.5"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const year = new Date().getFullYear() + i - 1
+                      return (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+
+                {/* Connection Status Indicator */}
+                {connectionStatus && (
+                  <div className="flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium bg-gray-100">
+                    <span>{connectionStatus.icon}</span>
+                    <span className={connectionStatus.status === 'database' ? 'text-green-700' : 'text-amber-700'}>
+                      {connectionStatus.status === 'database' ? 'Database' : 'Offline'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             

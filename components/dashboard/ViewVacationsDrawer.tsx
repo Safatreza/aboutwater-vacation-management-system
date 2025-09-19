@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, Trash2 } from 'lucide-react'
-import { getVacations, deleteVacationFromDb } from '@/lib/database'
+import { getVacations, deleteVacation } from '@/lib/hybridStorage'
 
 interface Vacation {
   id: string
@@ -34,14 +34,14 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     try {
       setLoading(true)
 
-      // CRITICAL FIX: Load from REAL Supabase database (multi-user persistence)
+      // Use hybrid storage system (Supabase with localStorage fallback)
       const dbVacations = await getVacations()
       const employeeVacations = dbVacations.filter((vacation: any) => {
         const vacationYear = new Date(vacation.start_date).getFullYear()
         return vacation.employee_id === employeeId && vacationYear === year
       })
 
-      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId} from REAL database`)
+      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId}`)
 
       // Convert to expected format
       const formattedVacations: Vacation[] = employeeVacations.map((vacation: any) => ({
@@ -66,16 +66,16 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     }
   }
 
-  const deleteVacation = async (vacationId: string) => {
+  const handleDeleteVacation = async (vacationId: string) => {
     if (!confirm('Are you sure you want to delete this vacation?')) {
       return
     }
 
     try {
-      // CRITICAL FIX: Delete from REAL Supabase database for multi-user persistence
-      await deleteVacationFromDb(vacationId)
+      // Use hybrid storage system (Supabase with localStorage fallback)
+      await deleteVacation(vacationId)
 
-      console.log('✅ Vacation deleted from REAL database:', vacationId)
+      console.log('✅ Vacation deleted:', vacationId)
       alert('✅ Vacation deleted successfully')
       fetchVacations()
       onUpdate()
@@ -137,7 +137,7 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
                       </div>
                     </div>
                     <button
-                      onClick={() => deleteVacation(vacation.id)}
+                      onClick={() => handleDeleteVacation(vacation.id)}
                       className="text-red-600 hover:text-red-800 p-1"
                       title="Delete vacation"
                     >
