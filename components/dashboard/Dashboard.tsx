@@ -13,7 +13,7 @@ import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
 import ExcelImportModal from './ExcelImportModal'
-import { getEmployees, getVacations, initializeEmployeesInDatabase, testConnection } from '@/lib/database'
+import { getEmployees, getVacations, initializeEmployeesInDatabase, testConnection, generateExcelFromDatabase } from '@/lib/database'
 
 export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
