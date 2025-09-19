@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, Trash2 } from 'lucide-react'
-import { loadVacationsFromDatabase, deleteVacationFromDatabase } from '@/lib/databaseOperations'
+import { getVacations, deleteVacationFromDb } from '@/lib/database'
 
 interface Vacation {
   id: string
@@ -34,22 +34,22 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     try {
       setLoading(true)
 
-      // CRITICAL FIX: Load from database (primary source for multi-user persistence)
-      const dbVacations = await loadVacationsFromDatabase()
-      const employeeVacations = dbVacations.filter(vacation => {
+      // CRITICAL FIX: Load from REAL Supabase database (multi-user persistence)
+      const dbVacations = await getVacations()
+      const employeeVacations = dbVacations.filter((vacation: any) => {
         const vacationYear = new Date(vacation.start_date).getFullYear()
         return vacation.employee_id === employeeId && vacationYear === year
       })
 
-      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId} from database`)
+      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId} from REAL database`)
 
       // Convert to expected format
-      const formattedVacations: Vacation[] = employeeVacations.map(vacation => ({
+      const formattedVacations: Vacation[] = employeeVacations.map((vacation: any) => ({
         id: vacation.id,
         start_date: vacation.start_date,
         end_date: vacation.end_date,
-        working_days: vacation.days,
-        days: vacation.days,
+        working_days: vacation.days_count,
+        days: vacation.days_count,
         note: vacation.reason,
         reason: vacation.reason
       }))
@@ -72,14 +72,10 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     }
 
     try {
-      // CRITICAL FIX: Delete from database for multi-user persistence
-      const success = await deleteVacationFromDatabase(vacationId)
+      // CRITICAL FIX: Delete from REAL Supabase database for multi-user persistence
+      await deleteVacationFromDb(vacationId)
 
-      if (!success) {
-        throw new Error('Failed to delete vacation from database')
-      }
-
-      console.log('✅ Vacation deleted from database:', vacationId)
+      console.log('✅ Vacation deleted from REAL database:', vacationId)
       alert('✅ Vacation deleted successfully')
       fetchVacations()
       onUpdate()

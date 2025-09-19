@@ -13,7 +13,7 @@ import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
 import ExcelImportModal from './ExcelImportModal'
-import { loadEmployeesFromDatabase, loadVacationsFromDatabase, initializeDefaultEmployees, generateExcelFromDatabase } from '@/lib/databaseOperations'
+import { getEmployees, getVacations, initializeEmployeesInDatabase, testConnection } from '@/lib/database'
 
 export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -46,11 +46,19 @@ export default function Dashboard() {
     '#DC2626', '#7C3AED', '#DB2777', '#374151', '#047857'
   ]
 
-  // Fetch employees and vacations data from database
+  // Fetch employees and vacations data from REAL database
   useEffect(() => {
-    // Initialize default employees in database if needed
-    initializeDefaultEmployees()
-    fetchEmployeesAndVacations()
+    // Test connection and initialize database
+    const initializeDatabase = async () => {
+      const connected = await testConnection()
+      if (connected) {
+        await initializeEmployeesInDatabase()
+        fetchEmployeesAndVacations()
+      } else {
+        alert('❌ Database connection failed! Check Supabase configuration.')
+      }
+    }
+    initializeDatabase()
   }, [selectedYear, refreshKey])
 
   // Listen for database changes for real-time updates
@@ -67,9 +75,9 @@ export default function Dashboard() {
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {
-      // CRITICAL FIX: Load from database (primary source for multi-user persistence)
-      const dbEmployees = await loadEmployeesFromDatabase()
-      const dbVacations = await loadVacationsFromDatabase()
+      // CRITICAL FIX: Load from REAL Supabase database (multi-user persistence)
+      const dbEmployees = await getEmployees()
+      const dbVacations = await getVacations()
 
       // Filter vacations by selected year
       const yearVacations = dbVacations.filter(vacation => {
@@ -100,7 +108,7 @@ export default function Dashboard() {
           employee_id: vacation.employee_id,
           start_date: vacation.start_date,
           end_date: vacation.end_date,
-          working_days: vacation.days,
+          working_days: vacation.days_count || vacation.days,
           note: vacation.reason,
           employeeName: emp?.name || 'Unknown',
           color: emp?.color || '#1c5975',

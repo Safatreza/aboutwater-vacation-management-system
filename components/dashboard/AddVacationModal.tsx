@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, AlertTriangle } from 'lucide-react'
-import { addVacationToDatabaseWithEmployeeUpdate, loadEmployeesFromDatabase } from '@/lib/databaseOperations'
+import { addVacationToDb, getEmployees } from '@/lib/database'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -21,9 +21,9 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
   // Get employee data for validation
   const [employee, setEmployee] = useState<any>(null)
 
-  // Load employee data
+  // Load employee data from REAL database
   useEffect(() => {
-    loadEmployeesFromDatabase().then(employees => {
+    getEmployees().then(employees => {
       const emp = employees.find(e => e.id === employeeId)
       setEmployee(emp)
     })
@@ -111,22 +111,18 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
       // Calculate vacation days
       const dayCount = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-      // CRITICAL FIX: Use robust database persistence for multi-user support
-      const result = await addVacationToDatabaseWithEmployeeUpdate(employeeId, {
+      // CRITICAL FIX: Use REAL Supabase database for multi-user support
+      const result = await addVacationToDb(employeeId, {
         startDate,
         endDate,
         days: dayCount,
         reason: note.trim() || 'Urlaub'
       })
 
-      if (!result.success) {
-        throw new Error('Failed to save vacation to database')
-      }
+      console.log('✅ Vacation saved successfully to REAL database:', result)
 
-      console.log('✅ Vacation saved successfully to database:', result.vacation)
-
-      // Show success message with updated info
-      alert(`✅ Vacation added successfully!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\nNew Used: ${result.employee?.used || 'N/A'} days\nRemaining: ${result.employee?.remaining || 'N/A'} days`)
+      // Show success message
+      alert(`✅ Vacation added successfully to database!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\n\nData is now shared across all users!`)
 
       // Clear form
       setStartDate('')
