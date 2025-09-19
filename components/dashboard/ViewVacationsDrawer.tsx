@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, Trash2 } from 'lucide-react'
-import { getEmployeeVacations, getVacations, saveVacations, updateEmployeeUsage } from '@/lib/clientStorage'
+import { loadVacationsFromDatabase, deleteVacationFromDatabase } from '@/lib/databaseOperations'
 
 interface Vacation {
   id: string
@@ -34,16 +34,17 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     try {
       setLoading(true)
 
-      // CRITICAL FIX: Load from localStorage first (primary source)
-      const localVacations = getEmployeeVacations(employeeId).filter(vacation => {
+      // CRITICAL FIX: Load from database (primary source for multi-user persistence)
+      const dbVacations = await loadVacationsFromDatabase()
+      const employeeVacations = dbVacations.filter(vacation => {
         const vacationYear = new Date(vacation.start_date).getFullYear()
-        return vacationYear === year
+        return vacation.employee_id === employeeId && vacationYear === year
       })
 
-      console.log(`📖 Loaded ${localVacations.length} vacations for employee ${employeeId} from localStorage`)
+      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId} from database`)
 
       // Convert to expected format
-      const formattedVacations: Vacation[] = localVacations.map(vacation => ({
+      const formattedVacations: Vacation[] = employeeVacations.map(vacation => ({
         id: vacation.id,
         start_date: vacation.start_date,
         end_date: vacation.end_date,
@@ -56,23 +57,10 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
       setVacations(formattedVacations)
       setError(null)
 
-      // Also try to load from API (secondary source, don't fail if it doesn't work)
-      try {
-        const response = await fetch(`/api/vacations?employee_id=${employeeId}&year=${year}`)
-        const result = await response.json()
-
-        if (result.ok && result.data && result.data.length > 0) {
-          console.log(`📖 Also found ${result.data.length} vacations from API`)
-          // Could merge API data here if needed
-        }
-      } catch (apiError) {
-        console.warn('API fetch failed (localStorage success):', apiError)
-      }
-
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
-      console.error('Error fetching vacations:', errorMessage)
+      console.error('Error fetching vacations from database:', errorMessage)
     } finally {
       setLoading(false)
     }
@@ -84,32 +72,14 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     }
 
     try {
-      // CRITICAL FIX: Delete from localStorage first
-      const allVacations = getVacations()
-      const vacationToDelete = allVacations.find(v => v.id === vacationId)
+      // CRITICAL FIX: Delete from database for multi-user persistence
+      const success = await deleteVacationFromDatabase(vacationId)
 
-      if (!vacationToDelete) {
-        throw new Error('Vacation not found in localStorage')
+      if (!success) {
+        throw new Error('Failed to delete vacation from database')
       }
 
-      // Remove vacation from localStorage
-      const updatedVacations = allVacations.filter(v => v.id !== vacationId)
-      saveVacations(updatedVacations)
-
-      // Update employee used days (subtract the deleted vacation days)
-      updateEmployeeUsage(vacationToDelete.employee_id, -vacationToDelete.days)
-
-      console.log('✅ Vacation deleted from localStorage:', vacationId)
-
-      // Also try to delete from API (fallback - doesn't matter if it fails)
-      try {
-        await fetch(`/api/vacations/${vacationId}`, {
-          method: 'DELETE'
-        })
-      } catch (apiError) {
-        console.warn('API delete failed (localStorage success):', apiError)
-      }
-
+      console.log('✅ Vacation deleted from database:', vacationId)
       alert('✅ Vacation deleted successfully')
       fetchVacations()
       onUpdate()

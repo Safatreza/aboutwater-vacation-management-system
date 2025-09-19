@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Calendar, AlertTriangle } from 'lucide-react'
-import { addVacation, getEmployees } from '@/lib/clientStorage'
+import { addVacationToDatabaseWithEmployeeUpdate, loadEmployeesFromDatabase } from '@/lib/databaseOperations'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -19,7 +19,15 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
   const [errors, setErrors] = useState<string[]>([])
 
   // Get employee data for validation
-  const employee = getEmployees().find(emp => emp.id === employeeId)
+  const [employee, setEmployee] = useState<any>(null)
+
+  // Load employee data
+  useEffect(() => {
+    loadEmployeesFromDatabase().then(employees => {
+      const emp = employees.find(e => e.id === employeeId)
+      setEmployee(emp)
+    })
+  }, [employeeId])
 
   // COMPREHENSIVE VALIDATION FUNCTION
   const validateForm = (): string[] => {
@@ -103,8 +111,8 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
       // Calculate vacation days
       const dayCount = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-      // CRITICAL FIX: Use robust localStorage persistence
-      const result = addVacation(employeeId, {
+      // CRITICAL FIX: Use robust database persistence for multi-user support
+      const result = await addVacationToDatabaseWithEmployeeUpdate(employeeId, {
         startDate,
         endDate,
         days: dayCount,
@@ -112,28 +120,10 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
       })
 
       if (!result.success) {
-        throw new Error('Failed to save vacation to localStorage')
+        throw new Error('Failed to save vacation to database')
       }
 
-      console.log('✅ Vacation saved successfully:', result.vacation)
-
-      // Also try to save to API (fallback - doesn't matter if it fails)
-      try {
-        await fetch('/api/vacations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            employee_id: employeeId,
-            start_date: startDate,
-            end_date: endDate,
-            note: note.trim() || null
-          })
-        })
-      } catch (apiError) {
-        console.warn('API save failed (localStorage success):', apiError)
-      }
+      console.log('✅ Vacation saved successfully to database:', result.vacation)
 
       // Show success message with updated info
       alert(`✅ Vacation added successfully!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\nNew Used: ${result.employee?.used || 'N/A'} days\nRemaining: ${result.employee?.remaining || 'N/A'} days`)

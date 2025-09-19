@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LogOut, Plus, Users, Calendar, Download, RefreshCw, Database, TrendingUp } from 'lucide-react'
+import { LogOut, Plus, Users, Calendar, Download, RefreshCw, Database, TrendingUp, Upload } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 // import { useAuth } from '@/components/auth/AuthProvider'
 import Image from 'next/image'
@@ -12,7 +12,8 @@ import AddVacationModal from './AddVacationModal'
 import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
-import { getEmployees, getVacations, initializeStorage, generateVacationExcel } from '@/lib/clientStorage'
+import ExcelImportModal from './ExcelImportModal'
+import { loadEmployeesFromDatabase, loadVacationsFromDatabase, initializeDefaultEmployees, generateExcelFromDatabase } from '@/lib/databaseOperations'
 
 export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const [showViewVacations, setShowViewVacations] = useState(false)
   const [showHolidays, setShowHolidays] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
+  const [showExcelImport, setShowExcelImport] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
   
   // System state
@@ -44,51 +46,41 @@ export default function Dashboard() {
     '#DC2626', '#7C3AED', '#DB2777', '#374151', '#047857'
   ]
 
-  // Fetch employees and vacations data
+  // Fetch employees and vacations data from database
   useEffect(() => {
-    // Initialize localStorage first
-    initializeStorage()
+    // Initialize default employees in database if needed
+    initializeDefaultEmployees()
     fetchEmployeesAndVacations()
   }, [selectedYear, refreshKey])
 
-  // Listen for localStorage changes for real-time updates
+  // Listen for database changes for real-time updates
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key && (e.key.includes('vacation-employees') || e.key.includes('vacation-entries'))) {
-        console.log('🔄 Dashboard: localStorage changed, refreshing data')
-        fetchEmployeesAndVacations()
-      }
-    }
-
-    // Listen for custom events (same-tab changes)
-    const handleCustomStorageChange = () => {
-      console.log('🔄 Dashboard: Custom storage event, refreshing data')
+    // Set up periodic refresh for real-time updates
+    const interval = setInterval(() => {
+      console.log('🔄 Dashboard: Checking for database updates')
       fetchEmployeesAndVacations()
-    }
+    }, 30000) // Refresh every 30 seconds
 
-    window.addEventListener('storage', handleStorageChange)
-    window.addEventListener('localStorageUpdate', handleCustomStorageChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('localStorageUpdate', handleCustomStorageChange)
-    }
+    return () => clearInterval(interval)
   }, [selectedYear])
 
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {
-      // CRITICAL FIX: Load from localStorage first (primary source)
-      const localEmployees = getEmployees()
-      const localVacations = getVacations().filter(vacation => {
+      // CRITICAL FIX: Load from database (primary source for multi-user persistence)
+      const dbEmployees = await loadEmployeesFromDatabase()
+      const dbVacations = await loadVacationsFromDatabase()
+
+      // Filter vacations by selected year
+      const yearVacations = dbVacations.filter(vacation => {
         const vacationYear = new Date(vacation.start_date).getFullYear()
         return vacationYear === selectedYear
       })
 
-      console.log(`📖 Dashboard loaded ${localEmployees.length} employees and ${localVacations.length} vacations from localStorage`)
+      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations from database`)
 
-      // Convert localStorage format to dashboard format
-      const employeesWithColors = localEmployees.map((emp: any, index: number) => ({
+      // Convert database format to dashboard format
+      const employeesWithColors = dbEmployees.map((emp: any, index: number) => ({
         id: emp.id,
         name: emp.name,
         allowance_days: emp.allowance,
@@ -100,21 +92,8 @@ export default function Dashboard() {
       }))
       setEmployees(employeesWithColors)
 
-      // Also try to fetch from API (backup)
-      try {
-        const employeesResponse = await fetch('/api/employees')
-        const employeesResult = await employeesResponse.json()
-
-        if (employeesResult.ok && employeesResult.data) {
-          console.log(`📖 Dashboard also loaded ${employeesResult.data.length} employees from API`)
-          // Could merge API data here if needed
-        }
-      } catch (apiError) {
-        console.warn('API fetch failed (localStorage success):', apiError)
-      }
-        
-      // Convert localStorage vacations to dashboard format
-      const flattenedVacations = localVacations.map((vacation: any) => {
+      // Convert database vacations to dashboard format
+      const flattenedVacations = yearVacations.map((vacation: any) => {
         const emp = employeesWithColors.find(e => e.id === vacation.employee_id)
         return {
           id: vacation.id,
@@ -128,7 +107,7 @@ export default function Dashboard() {
           dates: generateDateRange(vacation.start_date, vacation.end_date)
         }
       })
-        
+
       // Convert vacation ranges to individual dates for calendar display
       const vacationDates = flattenedVacations.flatMap((vacation: any) =>
         vacation.dates?.map((date: string) => ({
@@ -143,7 +122,7 @@ export default function Dashboard() {
 
       setVacations(vacationDates)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      console.error('Error fetching data from database:', error)
       setEmployees([])
       setVacations([])
     } finally {
@@ -225,9 +204,9 @@ export default function Dashboard() {
   const handleExcelDownload = async () => {
     setBackingUp(true)
     try {
-      const success = await generateVacationExcel()
+      const success = await generateExcelFromDatabase()
       if (success) {
-        alert('Excel backup downloaded successfully! Check your Downloads folder.')
+        alert('Excel export downloaded successfully! Check your Downloads folder.')
       }
     } catch (error) {
       console.error('Excel download error:', error)
@@ -272,6 +251,14 @@ export default function Dashboard() {
             
             {/* Right side - Action Buttons */}
             <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowExcelImport(true)}
+                className="btn-aboutwater-outline"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Excel Import
+              </button>
+
               <button
                 onClick={handleExcelDownload}
                 disabled={backingUp}
@@ -377,7 +364,7 @@ export default function Dashboard() {
           onSuccess={handleRefresh}
         />
       )}
-      
+
       {showAddVacation && selectedEmployeeId && (
         <AddVacationModal
           employeeId={selectedEmployeeId}
@@ -389,7 +376,7 @@ export default function Dashboard() {
           onSuccess={handleRefresh}
         />
       )}
-      
+
       {showViewVacations && selectedEmployeeId && (
         <ViewVacationsDrawer
           employeeId={selectedEmployeeId}
@@ -401,12 +388,19 @@ export default function Dashboard() {
           onUpdate={handleRefresh}
         />
       )}
-      
+
       {showHolidays && (
         <HolidayManagement
           year={selectedYear}
           onClose={() => setShowHolidays(false)}
           onUpdate={handleRefresh}
+        />
+      )}
+
+      {showExcelImport && (
+        <ExcelImportModal
+          onClose={() => setShowExcelImport(false)}
+          onSuccess={handleRefresh}
         />
       )}
     </div>
