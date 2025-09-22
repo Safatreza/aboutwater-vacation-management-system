@@ -3,16 +3,16 @@
     "id": "1",
     "name": "Andreas Pöppe",
     "allowance": 38,
-    "used": 30.5,
-    "remaining": 7.5,
+    "used": 32.5,
+    "remaining": 5.5,
     "color": "#FF0000"
   },
   {
     "id": "2",
     "name": "Anna Kropfitsch",
     "allowance": 0,
-    "used": 0,
-    "remaining": 0,
+    "used": 2,
+    "remaining": -2,
     "color": "#0000FF"
   },
   {

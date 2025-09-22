@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, AlertTriangle } from 'lucide-react'
-import { addVacation } from '@/lib/sharedStorage'
-import { getEmployees } from '@/lib/clientStorage'
+import { addVacation, getEmployees } from '@/lib/sharedStorage'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -23,24 +22,28 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
   const [employee, setEmployee] = useState<any>(null)
   const [loadingEmployee, setLoadingEmployee] = useState(true)
 
-  // Load employee data from localStorage (same source as EmployeeTable)
+  // Load employee data from shared storage API (same source as EmployeeTable)
   useEffect(() => {
-    setLoadingEmployee(true)
-    setErrors([]) // Clear any previous errors
+    const loadEmployee = async () => {
+      setLoadingEmployee(true)
+      setErrors([]) // Clear any previous errors
 
-    try {
-      const employees = getEmployees()
-      const emp = employees.find(e => e.id === employeeId)
-      console.log('🔍 AddVacationModal: Looking for employee ID:', employeeId)
-      console.log('📋 AddVacationModal: Available employees:', employees.map(e => ({ id: e.id, name: e.name })))
-      console.log('✅ AddVacationModal: Found employee:', emp)
-      setEmployee(emp)
-    } catch (error) {
-      console.error('❌ AddVacationModal: Failed to load employee:', error)
-      setEmployee(null)
-    } finally {
-      setLoadingEmployee(false)
+      try {
+        console.log('🔍 AddVacationModal: Loading employees from shared storage for ID:', employeeId)
+        const employees = await getEmployees()
+        const emp = employees.find(e => e.id === employeeId)
+        console.log('📋 AddVacationModal: Available employees:', employees.map(e => ({ id: e.id, name: e.name })))
+        console.log('✅ AddVacationModal: Found employee:', emp)
+        setEmployee(emp)
+      } catch (error) {
+        console.error('❌ AddVacationModal: Failed to load employee from API:', error)
+        setEmployee(null)
+      } finally {
+        setLoadingEmployee(false)
+      }
     }
+
+    loadEmployee()
   }, [employeeId])
 
   // COMPREHENSIVE VALIDATION FUNCTION

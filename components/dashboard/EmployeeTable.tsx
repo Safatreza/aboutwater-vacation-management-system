@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, Eye, Users, Trash2, RefreshCw } from 'lucide-react'
-import { getEmployees, getVacations } from '@/lib/clientStorage'
+import { getEmployees, getVacations } from '@/lib/sharedStorage'
 
 interface EmployeeSummary {
   employee_id: string
@@ -32,21 +32,21 @@ export default function EmployeeTable({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch employee summaries from localStorage first, then API as backup
+  // Fetch employee summaries from shared storage API
   const fetchEmployees = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // PRIMARY: Get data from localStorage for instant updates
-      const localEmployees = getEmployees()
-      const localVacations = getVacations()
+      // Get data from shared storage API for consistency with AddVacationModal
+      console.log('📡 EmployeeTable: Loading employees from shared storage API')
+      const apiEmployees = await getEmployees()
 
-      if (localEmployees && localEmployees.length > 0) {
-        console.log(`📖 EmployeeTable: Loading ${localEmployees.length} employees from localStorage`)
+      if (apiEmployees && apiEmployees.length > 0) {
+        console.log(`📖 EmployeeTable: Loading ${apiEmployees.length} employees from shared storage`)
 
-        // Convert localStorage format to EmployeeTable format
-        const employeeSummaries: EmployeeSummary[] = localEmployees.map(emp => ({
+        // Convert API format to EmployeeTable format
+        const employeeSummaries: EmployeeSummary[] = apiEmployees.map(emp => ({
           employee_id: emp.id,
           employee_name: emp.name,
           vacation_allowance: emp.allowance,
@@ -60,16 +60,25 @@ export default function EmployeeTable({
         return
       }
 
-      // FALLBACK: If localStorage is empty, try API
-      console.log('📡 EmployeeTable: Falling back to API data')
-      const response = await fetch(`/api/employees/summary?year=${year}`)
-      const result = await response.json()
+      // FALLBACK: If API fails, try direct API endpoint
+      console.log('📡 EmployeeTable: Falling back to direct API endpoint')
+      const response = await fetch(`/api/employees`)
 
-      if (!result.ok) {
-        throw new Error(result.error || 'Failed to fetch employees')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      setEmployees(result.data || [])
+      const directEmployees = await response.json()
+      const employeeSummaries: EmployeeSummary[] = directEmployees.map((emp: any) => ({
+        employee_id: emp.id,
+        employee_name: emp.name,
+        vacation_allowance: emp.allowance,
+        used_days: emp.used,
+        remaining_days: emp.remaining,
+        color: emp.color
+      }))
+
+      setEmployees(employeeSummaries)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
@@ -84,30 +93,15 @@ export default function EmployeeTable({
     fetchEmployees()
   }, [year, refreshKey])
 
-  // Listen for localStorage changes for real-time updates
+  // Listen for refresh events for real-time updates
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key && (e.key.includes('vacation-employees') || e.key.includes('vacation-entries'))) {
-        console.log('🔄 EmployeeTable: localStorage changed, refreshing data')
-        fetchEmployees()
-      }
-    }
-
-    // Listen for storage events (cross-tab changes)
-    window.addEventListener('storage', handleStorageChange)
-
-    // Also listen for custom events (same-tab changes)
-    const handleCustomStorageChange = () => {
-      console.log('🔄 EmployeeTable: Custom storage event, refreshing data')
+    // Set up periodic refresh for real-time updates
+    const interval = setInterval(() => {
+      console.log('🔄 EmployeeTable: Checking for API updates')
       fetchEmployees()
-    }
+    }, 30000) // Refresh every 30 seconds
 
-    window.addEventListener('localStorageUpdate', handleCustomStorageChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('localStorageUpdate', handleCustomStorageChange)
-    }
+    return () => clearInterval(interval)
   }, [year])
 
   const handleDeleteEmployee = async (employeeId: string, employeeName: string) => {
