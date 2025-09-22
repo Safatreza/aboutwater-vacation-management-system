@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, AlertTriangle } from 'lucide-react'
-import { addVacation, getEmployees } from '@/lib/sharedStorage'
+import { addVacation } from '@/lib/sharedStorage'
+import { getEmployees } from '@/lib/clientStorage'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -20,13 +21,26 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
 
   // Get employee data for validation
   const [employee, setEmployee] = useState<any>(null)
+  const [loadingEmployee, setLoadingEmployee] = useState(true)
 
-  // Load employee data from REAL database
+  // Load employee data from localStorage (same source as EmployeeTable)
   useEffect(() => {
-    getEmployees().then(employees => {
+    setLoadingEmployee(true)
+    setErrors([]) // Clear any previous errors
+
+    try {
+      const employees = getEmployees()
       const emp = employees.find(e => e.id === employeeId)
+      console.log('🔍 AddVacationModal: Looking for employee ID:', employeeId)
+      console.log('📋 AddVacationModal: Available employees:', employees.map(e => ({ id: e.id, name: e.name })))
+      console.log('✅ AddVacationModal: Found employee:', emp)
       setEmployee(emp)
-    })
+    } catch (error) {
+      console.error('❌ AddVacationModal: Failed to load employee:', error)
+      setEmployee(null)
+    } finally {
+      setLoadingEmployee(false)
+    }
   }, [employeeId])
 
   // COMPREHENSIVE VALIDATION FUNCTION
@@ -71,9 +85,9 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
       }
     }
 
-    // Check employee exists
-    if (!employee) {
-      validationErrors.push('Employee not found')
+    // Check employee exists (only if not loading)
+    if (!loadingEmployee && !employee) {
+      validationErrors.push(`Employee not found (ID: ${employeeId}). Please close and reopen the modal.`)
     }
 
     return validationErrors
@@ -176,10 +190,23 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
         )}
 
         {/* Employee Info Display */}
-        {employee && (
+        {loadingEmployee ? (
+          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+            <div className="text-sm text-gray-600 font-asap flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1c5975] mr-2"></div>
+              Loading employee data...
+            </div>
+          </div>
+        ) : employee ? (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
             <div className="text-sm text-blue-800 font-asap">
               <strong>{employee.name}</strong> - Remaining: {employee.remaining} days ({employee.used}/{employee.allowance} used)
+            </div>
+          </div>
+        ) : (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <div className="text-sm text-red-800 font-asap">
+              ⚠️ Employee data could not be loaded. Please close and reopen this modal.
             </div>
           </div>
         )}
