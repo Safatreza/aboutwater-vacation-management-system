@@ -1,14 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { NextResponse } from 'next/server'
 
-// File paths for shared storage
-const dataDir = path.join(process.cwd(), 'data')
-const vacationsFile = path.join(dataDir, 'vacations.json')
-const employeesFile = path.join(dataDir, 'employees.json')
-
-// Default employee data
-const getDefaultEmployees = () => [
+// In-memory storage (resets on redeploy but works for testing)
+let vacations: any[] = []
+let employees = [
   { id: '1', name: 'Andreas Pöppe', allowance: 38.0, used: 28.5, remaining: 9.5, color: '#FF0000' },
   { id: '2', name: 'Anna Kropfitsch', allowance: 0.0, used: 0.0, remaining: 0.0, color: '#0000FF' },
   { id: '3', name: 'Antonio Svagusa', allowance: 26.0, used: 24.0, remaining: 2.0, color: '#008000' },
@@ -33,298 +27,91 @@ const getDefaultEmployees = () => [
   { id: '22', name: 'Thierry Brunner', allowance: 37.0, used: 28.0, remaining: 9.0, color: '#556B2F' }
 ]
 
-// Check if running on Vercel (read-only filesystem)
-const isVercel = process.env.VERCEL === '1'
-
-// GET /api/vacations - Get all vacations using shared file storage or in-memory for Vercel
-export async function GET(req: NextRequest): Promise<NextResponse> {
+// GET /api/vacations - Get all vacations
+export async function GET() {
   try {
-    console.log('📨 API GET /vacations - Starting request')
-
-    // Check if running on Vercel - use in-memory storage
-    if (isVercel) {
-      console.log('🌐 Running on Vercel - using in-memory storage')
-      const inMemoryVacations = (globalThis as any).__VACATIONS__ || []
-      console.log(`📖 Loaded ${inMemoryVacations.length} vacations from in-memory storage`)
-      return NextResponse.json(inMemoryVacations)
-    }
-
-    console.log('💾 Using local file storage')
-
-    // Initialize files if needed
-    if (!fs.existsSync(vacationsFile)) {
-      fs.writeFileSync(vacationsFile, JSON.stringify([], null, 2))
-    }
-
-    // Read vacations from shared file
-    const vacations = JSON.parse(fs.readFileSync(vacationsFile, 'utf8'))
-    console.log(`📖 Loaded ${vacations.length} vacations from SHARED STORAGE`)
-
+    console.log('📨 GET /api/vacations - returning vacations:', vacations.length)
     return NextResponse.json(vacations)
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching vacations'
-    console.error('❌ Error:', errorMessage)
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  } catch (error: any) {
+    console.error('❌ GET /api/vacations error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
 // POST /api/vacations - Create new vacation
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(request: Request) {
   try {
-    console.log('📍 POST /api/vacations - Starting request')
+    console.log('📍 POST /api/vacations - starting')
 
-    // Parse request body first
-    const body = await req.json()
-    console.log('📍 Received request body:', JSON.stringify(body, null, 2))
+    const body = await request.json()
+    console.log('📍 Received vacation data:', body)
 
-    // Check if running on Vercel (read-only filesystem) - use in-memory storage
-    if (isVercel) {
-      console.log('🌐 Running on Vercel - using in-memory storage for demo')
-
-      // In-memory storage for Vercel (resets on each deployment)
-      const inMemoryVacations = (globalThis as any).__VACATIONS__ || []
-      const inMemoryEmployees = (globalThis as any).__EMPLOYEES__ || [...getDefaultEmployees()]
-
-      // Validate required fields
-      if (!body.employee_id || !body.start_date || !body.end_date || !body.days) {
-        return NextResponse.json({
-          error: 'Validation failed',
-          details: ['employee_id', 'start_date', 'end_date', 'days'].filter(field => !body[field])
-        }, { status: 400 })
-      }
-
-      const newVacation = {
-        id: `vac_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        employee_id: body.employee_id,
-        start_date: body.start_date,
-        end_date: body.end_date,
-        days: parseFloat(body.days.toString()),
-        reason: body.reason || 'Urlaub (ganzer Tag)',
-        created_at: new Date().toISOString()
-      }
-
-      inMemoryVacations.push(newVacation)
-      ;(globalThis as any).__VACATIONS__ = inMemoryVacations
-
-      // Update employee
-      const employeeIndex = inMemoryEmployees.findIndex((emp: any) => emp.id === newVacation.employee_id)
-      if (employeeIndex !== -1) {
-        const employee = inMemoryEmployees[employeeIndex]
-        employee.used = parseFloat(employee.used.toString()) + parseFloat(newVacation.days.toString())
-        employee.remaining = parseFloat(employee.allowance.toString()) - employee.used
-        ;(globalThis as any).__EMPLOYEES__ = inMemoryEmployees
-        console.log(`📊 Updated employee ${employee.name}: used → ${employee.used}, remaining → ${employee.remaining}`)
-      }
-
-      console.log('✅ Successfully added vacation (Vercel in-memory)')
-      return NextResponse.json({
-        success: true,
-        vacation: newVacation,
-        employees: inMemoryEmployees,
-        message: `Added ${newVacation.days} days vacation (Vercel in-memory demo)`
-      })
+    // Validate required fields
+    if (!body.employee_id) {
+      return NextResponse.json({ error: 'employee_id is required' }, { status: 400 })
     }
 
-    // Body already parsed above for Vercel compatibility
-
-    // Validate required fields with detailed feedback
-    const validationErrors: string[] = []
-    if (!body.employee_id) validationErrors.push('employee_id is required')
-    if (!body.start_date) validationErrors.push('start_date is required')
-    if (!body.end_date) validationErrors.push('end_date is required')
-    if (!body.days && body.days !== 0) validationErrors.push('days is required')
-
-    if (validationErrors.length > 0) {
-      console.error('❌ Validation failed:', validationErrors)
-      return NextResponse.json({
-        error: 'Validation failed',
-        details: validationErrors,
-        receivedBody: body
-      }, { status: 400 })
+    if (!body.start_date) {
+      return NextResponse.json({ error: 'start_date is required' }, { status: 400 })
     }
 
-    console.log('📍 Setting up file paths')
-    console.log('📍 Data directory:', dataDir)
-    console.log('📍 Vacations file:', vacationsFile)
-    console.log('📍 Employees file:', employeesFile)
-
-    // Initialize directory with error handling
-    try {
-      if (!fs.existsSync(dataDir)) {
-        console.log('📍 Creating data directory')
-        fs.mkdirSync(dataDir, { recursive: true })
-      }
-    } catch (dirError) {
-      console.error('❌ Failed to create data directory:', dirError)
-      return NextResponse.json({
-        error: 'Failed to create data directory',
-        details: dirError instanceof Error ? dirError.message : 'Unknown directory error',
-        path: dataDir
-      }, { status: 500 })
+    if (!body.end_date) {
+      return NextResponse.json({ error: 'end_date is required' }, { status: 400 })
     }
 
-    // Initialize vacations file
-    try {
-      if (!fs.existsSync(vacationsFile)) {
-        console.log('📍 Creating vacations file')
-        fs.writeFileSync(vacationsFile, JSON.stringify([], null, 2), 'utf8')
-      }
-    } catch (vacError) {
-      console.error('❌ Failed to create vacations file:', vacError)
-      return NextResponse.json({
-        error: 'Failed to create vacations file',
-        details: vacError instanceof Error ? vacError.message : 'Unknown file error',
-        path: vacationsFile
-      }, { status: 500 })
-    }
-
-    // CRITICAL FIX: Initialize employees file with defaults instead of returning error
-    try {
-      if (!fs.existsSync(employeesFile)) {
-        console.log('📍 Creating employees file with default data')
-        const defaultEmployees = getDefaultEmployees()
-        fs.writeFileSync(employeesFile, JSON.stringify(defaultEmployees, null, 2), 'utf8')
-        console.log(`📍 Created employees file with ${defaultEmployees.length} default employees`)
-      }
-    } catch (empError) {
-      console.error('❌ Failed to create employees file:', empError)
-      return NextResponse.json({
-        error: 'Failed to create employees file',
-        details: empError instanceof Error ? empError.message : 'Unknown file error',
-        path: employeesFile
-      }, { status: 500 })
-    }
-
-    // Read current data with error handling
-    let vacations, employees
-    try {
-      console.log('📍 Reading vacations file')
-      const vacationsContent = fs.readFileSync(vacationsFile, 'utf8')
-      vacations = JSON.parse(vacationsContent)
-      console.log(`📍 Loaded ${vacations.length} existing vacations`)
-    } catch (readVacError) {
-      console.error('❌ Failed to read vacations file:', readVacError)
-      return NextResponse.json({
-        error: 'Failed to read vacations file',
-        details: readVacError instanceof Error ? readVacError.message : 'Unknown read error',
-        path: vacationsFile
-      }, { status: 500 })
-    }
-
-    try {
-      console.log('📍 Reading employees file')
-      const employeesContent = fs.readFileSync(employeesFile, 'utf8')
-      employees = JSON.parse(employeesContent)
-      console.log(`📍 Loaded ${employees.length} employees`)
-    } catch (readEmpError) {
-      console.error('❌ Failed to read employees file:', readEmpError)
-      return NextResponse.json({
-        error: 'Failed to read employees file',
-        details: readEmpError instanceof Error ? readEmpError.message : 'Unknown read error',
-        path: employeesFile
-      }, { status: 500 })
-    }
-
-    // Create new vacation with enhanced ID generation
+    // Create vacation entry
     const newVacation = {
       id: `vac_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       employee_id: body.employee_id,
       start_date: body.start_date,
       end_date: body.end_date,
-      days: parseFloat(body.days.toString()),
+      days: parseFloat(body.days?.toString() || '1'),
       reason: body.reason || 'Urlaub (ganzer Tag)',
       created_at: new Date().toISOString()
     }
-    console.log('📍 Created new vacation:', newVacation)
 
-    // Add to vacations array
+    console.log('📍 Created vacation object:', newVacation)
+
+    // Add to in-memory storage
     vacations.push(newVacation)
-    console.log(`📍 Added vacation to array, total count: ${vacations.length}`)
 
-    // Update employee used/remaining days with detailed logging
-    const employeeIndex = employees.findIndex(emp => emp.id === newVacation.employee_id)
-    console.log(`📍 Looking for employee ID: ${newVacation.employee_id}`)
-    console.log(`📍 Found employee at index: ${employeeIndex}`)
+    // Update employee used days
+    const employee = employees.find(emp => emp.id === body.employee_id)
+    console.log('📍 Found employee:', employee)
 
-    if (employeeIndex !== -1) {
-      const employee = employees[employeeIndex]
-      const oldUsed = employee.used
+    if (employee) {
+      const currentUsed = parseFloat(employee.used.toString())
       const vacationDays = parseFloat(newVacation.days.toString())
-      const allowance = parseFloat(employee.allowance.toString())
 
-      console.log(`📍 Employee before update:`, employee)
+      employee.used = currentUsed + vacationDays
+      employee.remaining = employee.allowance - employee.used
 
-      employee.used = parseFloat(employee.used.toString()) + vacationDays
-      employee.remaining = allowance - employee.used
-
-      console.log(`📍 Employee after update:`, employee)
-
-      // Save updated employees with error handling
-      try {
-        fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2), 'utf8')
-        console.log(`📊 Updated employee ${employee.name}: used ${oldUsed} → ${employee.used}, remaining: ${employee.remaining}`)
-      } catch (saveEmpError) {
-        console.error('❌ Failed to save employees file:', saveEmpError)
-        return NextResponse.json({
-          error: 'Failed to save updated employee data',
-          details: saveEmpError instanceof Error ? saveEmpError.message : 'Unknown save error'
-        }, { status: 500 })
-      }
-    } else {
-      console.warn(`⚠️ Employee not found with ID: ${newVacation.employee_id}`)
-      console.warn(`⚠️ Available employee IDs:`, employees.map(emp => emp.id))
+      console.log('📍 Updated employee:', employee)
     }
 
-    // Save updated vacations with error handling
-    try {
-      fs.writeFileSync(vacationsFile, JSON.stringify(vacations, null, 2), 'utf8')
-      console.log(`➕ Saved vacation file with ${vacations.length} total vacations`)
-    } catch (saveVacError) {
-      console.error('❌ Failed to save vacations file:', saveVacError)
-      return NextResponse.json({
-        error: 'Failed to save vacation data',
-        details: saveVacError instanceof Error ? saveVacError.message : 'Unknown save error'
-      }, { status: 500 })
-    }
-
-    console.log(`✅ Successfully added vacation: ${newVacation.days} days for employee ${newVacation.employee_id}`)
-
+    console.log('✅ POST /api/vacations - success')
     return NextResponse.json({
       success: true,
       vacation: newVacation,
-      employees: employees,
-      message: `Added ${newVacation.days} days vacation for ${employees.find(emp => emp.id === newVacation.employee_id)?.name || 'Unknown Employee'}`
+      employees: employees
     })
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error creating vacation'
-    const errorStack = error instanceof Error ? error.stack : undefined
-
-    console.error('❌ POST /api/vacations - Critical Error:', errorMessage)
-    console.error('❌ Error stack:', errorStack)
-
+  } catch (error: any) {
+    console.error('❌ POST /api/vacations error:', error)
     return NextResponse.json({
-      error: 'Internal server error while creating vacation',
-      details: errorMessage,
-      stack: errorStack,
-      timestamp: new Date().toISOString()
+      error: 'Failed to add vacation',
+      details: error.message
     }, { status: 500 })
   }
 }
 
 // DELETE /api/vacations - Delete vacation
-export async function DELETE(req: NextRequest): Promise<NextResponse> {
+export async function DELETE(request: Request) {
   try {
-    const body = await req.json()
+    const body = await request.json()
     const { id } = body
 
-    console.log(`🗑️ Deleting vacation from shared storage: ${id}`)
-
-    // Read current data
-    const vacations = JSON.parse(fs.readFileSync(vacationsFile, 'utf8'))
-    const employees = JSON.parse(fs.readFileSync(employeesFile, 'utf8'))
+    console.log(`🗑️ Deleting vacation: ${id}`)
 
     // Find vacation to delete
     const vacationIndex = vacations.findIndex(vac => vac.id === id)
@@ -337,20 +124,15 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
     vacations.splice(vacationIndex, 1)
 
     // Update employee used/remaining days
-    const employeeIndex = employees.findIndex(emp => emp.id === deletedVacation.employee_id)
+    const employee = employees.find(emp => emp.id === deletedVacation.employee_id)
 
-    if (employeeIndex !== -1) {
-      const oldUsed = employees[employeeIndex].used
-      employees[employeeIndex].used = parseFloat(employees[employeeIndex].used.toString()) - parseFloat(deletedVacation.days.toString())
-      employees[employeeIndex].remaining = employees[employeeIndex].allowance - employees[employeeIndex].used
+    if (employee) {
+      const oldUsed = employee.used
+      employee.used = parseFloat(employee.used.toString()) - parseFloat(deletedVacation.days.toString())
+      employee.remaining = employee.allowance - employee.used
 
-      // Save updated employees
-      fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2))
-      console.log(`📊 Reverted employee ${employees[employeeIndex].name}: used ${oldUsed} → ${employees[employeeIndex].used}, remaining: ${employees[employeeIndex].remaining}`)
+      console.log(`📊 Reverted employee ${employee.name}: used ${oldUsed} → ${employee.used}, remaining: ${employee.remaining}`)
     }
-
-    // Save updated vacations
-    fs.writeFileSync(vacationsFile, JSON.stringify(vacations, null, 2))
 
     console.log(`🗑️ Deleted vacation: ${deletedVacation.id}`)
 
@@ -360,10 +142,8 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
       employees: employees
     })
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting vacation'
-    console.error('❌ Error:', errorMessage)
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  } catch (error: any) {
+    console.error('❌ DELETE /api/vacations error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

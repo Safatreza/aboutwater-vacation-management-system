@@ -1,15 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { NextResponse } from 'next/server'
 
-// File paths for shared storage
-const dataDir = path.join(process.cwd(), 'data')
-const employeesFile = path.join(dataDir, 'employees.json')
-
-// Check if running on Vercel (read-only filesystem)
-const isVercel = process.env.VERCEL === '1'
-
-// Default AboutWater employees
+// Default AboutWater employees - in-memory storage
 const defaultEmployees = [
   { id: '1', name: 'Andreas Pöppe', allowance: 38.0, used: 28.5, remaining: 9.5, color: '#FF0000' },
   { id: '2', name: 'Anna Kropfitsch', allowance: 0.0, used: 0.0, remaining: 0.0, color: '#0000FF' },
@@ -35,55 +26,22 @@ const defaultEmployees = [
   { id: '22', name: 'Thierry Brunner', allowance: 37.0, used: 28.0, remaining: 9.0, color: '#556B2F' }
 ]
 
-// Initialize files if they don't exist
-function initializeFiles() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-    console.log('✅ Created data directory')
-  }
-
-  if (!fs.existsSync(employeesFile)) {
-    fs.writeFileSync(employeesFile, JSON.stringify(defaultEmployees, null, 2))
-    console.log('✅ Initialized employees.json with default AboutWater data')
-  }
-}
-
-// GET /api/employees - Get all employees using shared file storage or in-memory for Vercel
-export async function GET(req: NextRequest): Promise<NextResponse> {
+// GET /api/employees - Get all employees using in-memory storage
+export async function GET() {
   try {
     console.log('📨 API GET /employees - Starting request')
-
-    // Check if running on Vercel - use in-memory storage
-    if (isVercel) {
-      console.log('🌐 Running on Vercel - using in-memory storage')
-      const inMemoryEmployees = (globalThis as any).__EMPLOYEES__ || [...defaultEmployees]
-      console.log(`📖 Loaded ${inMemoryEmployees.length} employees from in-memory storage`)
-      return NextResponse.json(inMemoryEmployees)
-    }
-
-    console.log('💾 Using local file storage')
-
-    // Initialize files if needed
-    initializeFiles()
-
-    // Read employees from shared file
-    const employees = JSON.parse(fs.readFileSync(employeesFile, 'utf8'))
-    console.log(`📖 Loaded ${employees.length} employees from SHARED STORAGE`)
-
-    return NextResponse.json(employees)
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching employees'
-    console.error('❌ Error:', errorMessage)
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    console.log(`📖 Loaded ${defaultEmployees.length} employees from in-memory storage`)
+    return NextResponse.json(defaultEmployees)
+  } catch (error: any) {
+    console.error('❌ Error:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
 // POST /api/employees - Create new employee
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(request: Request) {
   try {
-    const body = await req.json()
+    const body = await request.json()
 
     console.log('Creating employee:', { name: body.name, allowance: body.allowance })
 
@@ -96,12 +54,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Allowance days must be between 1 and 50' }, { status: 400 })
     }
 
-    // Initialize files
-    initializeFiles()
-
-    // Read current employees
-    const employees = JSON.parse(fs.readFileSync(employeesFile, 'utf8'))
-
     // Create new employee
     const newEmployee = {
       id: `emp_${Date.now()}`,
@@ -113,44 +65,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     // Add to employees array
-    employees.push(newEmployee)
-
-    // Save back to file
-    fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2))
+    defaultEmployees.push(newEmployee)
 
     console.log(`Successfully created employee with ID: ${newEmployee.id}`)
 
     return NextResponse.json({ success: true, employee: newEmployee }, { status: 201 })
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error creating employee'
-    console.error('Error:', errorMessage)
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  } catch (error: any) {
+    console.error('Error:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
 // PUT /api/employees - Update employees
-export async function PUT(req: NextRequest): Promise<NextResponse> {
+export async function PUT(request: Request) {
   try {
-    const employees = await req.json()
+    const employees = await request.json()
 
     console.log('Updating employees:', employees.length)
 
-    // Initialize files
-    initializeFiles()
-
-    // Save employees to file
-    fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2))
+    // Replace default employees with updated ones
+    defaultEmployees.length = 0
+    defaultEmployees.push(...employees)
 
     console.log(`Successfully saved ${employees.length} employees`)
 
     return NextResponse.json({ success: true })
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error updating employees'
-    console.error('Error:', errorMessage)
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  } catch (error: any) {
+    console.error('Error:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
