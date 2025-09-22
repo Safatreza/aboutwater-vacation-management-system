@@ -75,7 +75,7 @@ export async function DELETE(
 
     if (employeeIndex !== -1) {
       const oldUsed = employees[employeeIndex].used
-      employees[employeeIndex].used = parseFloat(employees[employeeIndex].used) - parseFloat(deletedVacation.days)
+      employees[employeeIndex].used = parseFloat(employees[employeeIndex].used.toString()) - parseFloat(deletedVacation.days.toString())
       employees[employeeIndex].remaining = employees[employeeIndex].allowance - employees[employeeIndex].used
 
       // Save updated employees
