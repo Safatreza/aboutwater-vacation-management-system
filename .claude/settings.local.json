@@ -18,7 +18,10 @@
       "Bash(git push:*)",
       "Bash(git init:*)",
       "Bash(git fetch:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []

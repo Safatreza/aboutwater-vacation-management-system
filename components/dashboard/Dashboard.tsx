@@ -13,7 +13,7 @@ import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
 import ExcelImportModal from './ExcelImportModal'
-import { getEmployees, getVacations, getConnectionStatus } from '@/lib/hybridStorage'
+import { getEmployees, getVacations, getConnectionStatus } from '@/lib/sharedStorage'
 import { generateExcelFromDatabase } from '@/lib/database'
 
 export default function Dashboard() {
@@ -75,7 +75,7 @@ export default function Dashboard() {
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {
-      // Use hybrid storage system (Supabase with localStorage fallback)
+      // Use real shared storage (file-based multi-user system)
       const dbEmployees = await getEmployees()
       const dbVacations = await getVacations()
 
@@ -85,22 +85,22 @@ export default function Dashboard() {
         return vacationYear === selectedYear
       })
 
-      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations`)
+      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations from SHARED STORAGE`)
 
-      // Convert database format to dashboard format
+      // Convert shared storage format to dashboard format
       const employeesWithColors = dbEmployees.map((emp: any, index: number) => ({
         id: emp.id,
         name: emp.name,
-        allowance_days: emp.allowance || emp.allowance_days,
-        used_vacation_days: emp.used || emp.used_days,
-        remaining_vacation: emp.remaining || emp.remaining_days,
+        allowance_days: emp.allowance,
+        used_vacation_days: emp.used,
+        remaining_vacation: emp.remaining,
         region_code: 'DE',
         active: true,
-        color: emp.color || emp.color_code || defaultEmployeeColors[index % defaultEmployeeColors.length]
+        color: emp.color || defaultEmployeeColors[index % defaultEmployeeColors.length]
       }))
       setEmployees(employeesWithColors)
 
-      // Convert database vacations to dashboard format
+      // Convert shared storage vacations to dashboard format
       const flattenedVacations = yearVacations.map((vacation: any) => {
         const emp = employeesWithColors.find(e => e.id === vacation.employee_id)
         return {
@@ -108,10 +108,10 @@ export default function Dashboard() {
           employee_id: vacation.employee_id,
           start_date: vacation.start_date,
           end_date: vacation.end_date,
-          working_days: vacation.days_count || vacation.days,
+          working_days: vacation.days,
           note: vacation.reason,
-          employeeName: emp?.name || vacation.employees?.name || 'Unknown',
-          color: emp?.color || vacation.employees?.color_code || '#1c5975',
+          employeeName: emp?.name || 'Unknown',
+          color: emp?.color || '#1c5975',
           dates: generateDateRange(vacation.start_date, vacation.end_date)
         }
       })
@@ -130,7 +130,7 @@ export default function Dashboard() {
 
       setVacations(vacationDates)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      console.error('Error fetching data from shared storage:', error)
       setEmployees([])
       setVacations([])
     } finally {
@@ -261,8 +261,8 @@ export default function Dashboard() {
                 {connectionStatus && (
                   <div className="flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium bg-gray-100">
                     <span>{connectionStatus.icon}</span>
-                    <span className={connectionStatus.status === 'database' ? 'text-green-700' : 'text-amber-700'}>
-                      {connectionStatus.status === 'database' ? 'Database' : 'Offline'}
+                    <span className={connectionStatus.status === 'shared' ? 'text-green-700' : 'text-red-700'}>
+                      {connectionStatus.status === 'shared' ? 'Shared Storage' : 'Error'}
                     </span>
                   </div>
                 )}

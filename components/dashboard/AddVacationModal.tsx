@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, AlertTriangle } from 'lucide-react'
-import { addVacation, getEmployees } from '@/lib/hybridStorage'
+import { addVacation, getEmployees } from '@/lib/sharedStorage'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -111,19 +111,19 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
       // Calculate vacation days
       const dayCount = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-      // Use hybrid storage system (Supabase with localStorage fallback)
+      // Use real shared storage (file-based multi-user system)
       const result = await addVacation({
         employee_id: employeeId,
-        startDate,
-        endDate,
+        start_date: startDate,
+        end_date: endDate,
         days: dayCount,
         reason: note.trim() || 'Urlaub'
       })
 
-      console.log('✅ Vacation saved successfully:', result)
+      console.log('✅ Vacation saved to SHARED STORAGE:', result)
 
-      // Show success message
-      alert(`✅ Vacation added successfully!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}`)
+      // Show success message with multi-user confirmation
+      alert(`✅ Vacation added to SHARED STORAGE!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\n\n🌐 Data is now synchronized across all users and browsers!`)
 
       // Clear form
       setStartDate('')

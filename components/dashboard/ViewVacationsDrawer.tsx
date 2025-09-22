@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, Trash2 } from 'lucide-react'
-import { getVacations, deleteVacation } from '@/lib/hybridStorage'
+import { getVacations, deleteVacation } from '@/lib/sharedStorage'
 
 interface Vacation {
   id: string
@@ -34,22 +34,22 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     try {
       setLoading(true)
 
-      // Use hybrid storage system (Supabase with localStorage fallback)
+      // Use real shared storage (file-based multi-user system)
       const dbVacations = await getVacations()
       const employeeVacations = dbVacations.filter((vacation: any) => {
         const vacationYear = new Date(vacation.start_date).getFullYear()
         return vacation.employee_id === employeeId && vacationYear === year
       })
 
-      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId}`)
+      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId} from SHARED STORAGE`)
 
       // Convert to expected format
       const formattedVacations: Vacation[] = employeeVacations.map((vacation: any) => ({
         id: vacation.id,
         start_date: vacation.start_date,
         end_date: vacation.end_date,
-        working_days: vacation.days_count,
-        days: vacation.days_count,
+        working_days: vacation.days,
+        days: vacation.days,
         note: vacation.reason,
         reason: vacation.reason
       }))
@@ -72,11 +72,11 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     }
 
     try {
-      // Use hybrid storage system (Supabase with localStorage fallback)
+      // Use real shared storage (file-based multi-user system)
       await deleteVacation(vacationId)
 
-      console.log('✅ Vacation deleted:', vacationId)
-      alert('✅ Vacation deleted successfully')
+      console.log('✅ Vacation deleted from SHARED STORAGE:', vacationId)
+      alert('✅ Vacation deleted from shared storage - all users updated!')
       fetchVacations()
       onUpdate()
     } catch (err) {

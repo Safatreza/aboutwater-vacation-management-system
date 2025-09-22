@@ -1,390 +1,159 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { ApiResponse, VacationInsert, Vacation } from '@/types/database'
-import { 
-  calculateWorkingDaysCount, 
-  validateVacationDates, 
-  checkVacationOverlap,
-  getHolidaysForYear,
-  getCurrentYearBerlin
-} from '@/lib/vacationCalculations'
-import { mockDb, isMockMode } from '@/lib/mockDatabase'
+import fs from 'fs'
+import path from 'path'
 
-// GET /api/vacations - Get vacations with filters
-export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse<Vacation[]>>> {
-  const requestId = crypto.randomUUID()
-  
+// File paths for shared storage
+const dataDir = path.join(process.cwd(), 'data')
+const vacationsFile = path.join(dataDir, 'vacations.json')
+const employeesFile = path.join(dataDir, 'employees.json')
+
+// GET /api/vacations - Get all vacations using shared file storage
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    const { searchParams } = new URL(req.url)
-    const employeeId = searchParams.get('employee_id')
-    const year = searchParams.get('year') ? parseInt(searchParams.get('year')!) : undefined
-    
-    console.log(`[${requestId}] Fetching vacations with filters:`, { employeeId, year })
-    
-    if (isMockMode()) {
-      console.log(`[${requestId}] Using mock database`)
-      const vacations = await mockDb.getVacations(employeeId || undefined, year)
-      
-      console.log(`[${requestId}] Successfully fetched ${vacations.length} vacations (mock mode)`)
-      
-      return NextResponse.json<ApiResponse<Vacation[]>>({
-        ok: true,
-        data: vacations,
-        requestId
-      })
+    console.log('📨 API GET /vacations - Using SHARED FILE STORAGE')
+
+    // Initialize files if needed
+    if (!fs.existsSync(vacationsFile)) {
+      fs.writeFileSync(vacationsFile, JSON.stringify([], null, 2))
     }
 
-    // Check if we need to initialize with sample vacation data
-    const { data: vacationCheck } = await supabase
-      .from('vacations')
-      .select('id')
-      .limit(1)
+    // Read vacations from shared file
+    const vacations = JSON.parse(fs.readFileSync(vacationsFile, 'utf8'))
+    console.log(`📖 Loaded ${vacations.length} vacations from SHARED STORAGE`)
 
-    if (!vacationCheck || vacationCheck.length === 0) {
-      console.log(`[${requestId}] Initializing database with sample vacation data`)
+    return NextResponse.json(vacations)
 
-      // Get employees to map vacation data
-      const { data: employees } = await supabase
-        .from('employees')
-        .select('id, name')
-        .eq('active', true)
-
-      if (employees && employees.length > 0) {
-        // Type for employee data from Supabase
-        type EmployeeData = { id: string; name: string }
-        const typedEmployees = employees as EmployeeData[]
-
-        // Create sample vacation entries
-        const andreasId = typedEmployees.find(e => e.name === 'Andreas Pöppe')?.id
-        const carmenId = typedEmployees.find(e => e.name === 'Carmen Berger')?.id
-        const florianId = typedEmployees.find(e => e.name === 'Florian Gräf')?.id
-        const petraId = typedEmployees.find(e => e.name === 'Petra Gräf')?.id
-        const hannesId = typedEmployees.find(e => e.name === 'Hannes Kolm')?.id
-
-        const sampleVacations = [
-          andreasId && {
-            employee_id: andreasId,
-            start_date: '2025-03-10',
-            end_date: '2025-03-14',
-            working_days: 5,
-            note: 'Spring Break'
-          },
-          carmenId && {
-            employee_id: carmenId,
-            start_date: '2025-06-15',
-            end_date: '2025-06-20',
-            working_days: 4,
-            note: 'Summer Vacation'
-          },
-          florianId && {
-            employee_id: florianId,
-            start_date: '2025-07-07',
-            end_date: '2025-07-18',
-            working_days: 10,
-            note: 'Summer Holiday'
-          },
-          petraId && {
-            employee_id: petraId,
-            start_date: '2025-08-25',
-            end_date: '2025-08-29',
-            working_days: 5,
-            note: 'Late Summer Break'
-          },
-          hannesId && {
-            employee_id: hannesId,
-            start_date: '2025-12-23',
-            end_date: '2025-12-30',
-            working_days: 6,
-            note: 'Christmas Holidays'
-          }
-        ].filter(Boolean) // Remove null entries
-
-        if (sampleVacations.length > 0) {
-          const { error: insertError } = await (supabase as any)
-            .from('vacations')
-            .insert(sampleVacations)
-
-          if (insertError) {
-            console.warn(`[${requestId}] Error initializing sample vacations:`, insertError)
-          } else {
-            console.log(`[${requestId}] Successfully initialized ${sampleVacations.length} sample vacation entries`)
-          }
-        }
-      }
-    }
-
-    let query = supabase
-      .from('vacations')
-      .select(`
-        *,
-        employees:employee_id (
-          id,
-          name,
-          region_code
-        )
-      `)
-      .order('start_date', { ascending: false })
-    
-    if (employeeId) {
-      query = query.eq('employee_id', employeeId)
-    }
-    
-    if (year) {
-      const yearStart = `${year}-01-01`
-      const yearEnd = `${year}-12-31`
-      query = query.gte('start_date', yearStart).lte('end_date', yearEnd)
-    }
-    
-    const { data: vacations, error } = await query
-    
-    if (error) {
-      console.error(`[${requestId}] Error fetching vacations:`, error)
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: `Failed to fetch vacations: ${error.message}`,
-        requestId
-      }, { status: 500 })
-    }
-    
-    console.log(`[${requestId}] Successfully fetched ${vacations?.length || 0} vacations`)
-    
-    return NextResponse.json<ApiResponse<Vacation[]>>({
-      ok: true,
-      data: vacations || [],
-      requestId
-    })
-    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching vacations'
-    console.error(`[${requestId}] Error:`, errorMessage)
-    
-    return NextResponse.json<ApiResponse>({
-      ok: false,
-      error: errorMessage,
-      requestId
-    }, { status: 500 })
+    console.error('❌ Error:', errorMessage)
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 
 // POST /api/vacations - Create new vacation
-export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<Vacation>>> {
-  const requestId = crypto.randomUUID()
-  
+export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const body: VacationInsert & { employee_id: string } = await req.json()
-    
-    console.log(`[${requestId}] Creating vacation:`, {
-      employee_id: body.employee_id,
-      start_date: body.start_date,
-      end_date: body.end_date
-    })
-    
+    const body = await req.json()
+
+    console.log('Adding vacation to shared storage:', body)
+
     // Validate required fields
-    if (!body.employee_id || !body.start_date || !body.end_date) {
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: 'Employee ID, start date, and end date are required',
-        requestId
-      }, { status: 400 })
+    if (!body.employee_id || !body.start_date || !body.end_date || !body.days) {
+      return NextResponse.json({ error: 'Employee ID, start date, end date, and days are required' }, { status: 400 })
     }
-    
-    // Validate date format and logic
-    const dateValidation = validateVacationDates(body.start_date, body.end_date)
-    if (!dateValidation.isValid) {
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: dateValidation.error,
-        requestId
-      }, { status: 400 })
+
+    // Initialize files if needed
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true })
     }
-    
-    if (isMockMode()) {
-      console.log(`[${requestId}] Using mock database to create vacation`)
-      
-      // Check if employee exists
-      const employee = await mockDb.getEmployee(body.employee_id)
-      if (!employee) {
-        return NextResponse.json<ApiResponse>({
-          ok: false,
-          error: 'Employee not found or inactive',
-          requestId
-        }, { status: 404 })
-      }
-      
-      // Get existing vacations for overlap check
-      const existingVacations = await mockDb.getVacations(body.employee_id)
-      
-      // Check for overlaps
-      const overlapCheck = checkVacationOverlap(
-        body.start_date,
-        body.end_date,
-        existingVacations
-      )
-      
-      if (overlapCheck.hasOverlap) {
-        return NextResponse.json<ApiResponse>({
-          ok: false,
-          error: `Vacation dates overlap with existing vacation from ${overlapCheck.conflictingVacation?.start_date} to ${overlapCheck.conflictingVacation?.end_date}`,
-          requestId
-        }, { status: 400 })
-      }
-      
-      // Get holidays for working day calculation
-      const startYear = new Date(body.start_date).getFullYear()
-      const holidays = await mockDb.getHolidays(employee.region_code, startYear)
-      
-      // Calculate working days
-      const workingDays = calculateWorkingDaysCount(
-        body.start_date,
-        body.end_date,
-        holidays
-      )
-      
-      if (workingDays === 0) {
-        return NextResponse.json<ApiResponse>({
-          ok: false,
-          error: 'Vacation must include at least one working day',
-          requestId
-        }, { status: 400 })
-      }
-      
-      // Create vacation record
-      const vacationData: VacationInsert = {
-        employee_id: body.employee_id,
-        start_date: body.start_date,
-        end_date: body.end_date,
-        note: body.note || null,
-        working_days: workingDays
-      }
-      
-      const vacation = await mockDb.createVacation(vacationData)
-      
-      console.log(`[${requestId}] Successfully created vacation with ${workingDays} working days (mock mode)`)
-      
-      return NextResponse.json<ApiResponse<Vacation>>({
-        ok: true,
-        data: vacation,
-        requestId
-      }, { status: 201 })
+    if (!fs.existsSync(vacationsFile)) {
+      fs.writeFileSync(vacationsFile, JSON.stringify([], null, 2))
     }
-    
-    // Check if employee exists
-    const { data: employee, error: employeeError } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('id', body.employee_id)
-      .eq('active', true)
-      .single()
-    
-    if (employeeError || !employee) {
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: 'Employee not found or inactive',
-        requestId
-      }, { status: 404 })
+    if (!fs.existsSync(employeesFile)) {
+      return NextResponse.json({ error: 'Employees file not found' }, { status: 500 })
     }
-    
-    // Get existing vacations for overlap check
-    const { data: existingVacations, error: vacationError } = await supabase
-      .from('vacations')
-      .select('id, start_date, end_date')
-      .eq('employee_id', body.employee_id)
-    
-    if (vacationError) {
-      console.error(`[${requestId}] Error fetching existing vacations:`, vacationError)
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: 'Error checking for vacation overlaps',
-        requestId
-      }, { status: 500 })
-    }
-    
-    // Check for overlaps
-    const overlapCheck = checkVacationOverlap(
-      body.start_date,
-      body.end_date,
-      existingVacations || []
-    )
-    
-    if (overlapCheck.hasOverlap) {
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: `Vacation dates overlap with existing vacation from ${overlapCheck.conflictingVacation?.start_date} to ${overlapCheck.conflictingVacation?.end_date}`,
-        requestId
-      }, { status: 400 })
-    }
-    
-    // Get holidays for working day calculation
-    const startYear = new Date(body.start_date).getFullYear()
-    const { data: holidays } = await supabase
-      .from('holidays')
-      .select('*')
-      .eq('region_code', (employee as any).region_code)
-      .gte('date', `${startYear}-01-01`)
-      .lte('date', `${startYear}-12-31`)
-    
-    // Calculate working days
-    const workingDays = calculateWorkingDaysCount(
-      body.start_date,
-      body.end_date,
-      holidays || []
-    )
-    
-    if (workingDays === 0) {
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: 'Vacation must include at least one working day',
-        requestId
-      }, { status: 400 })
-    }
-    
-    // Create vacation record
-    const vacationData: VacationInsert = {
+
+    // Read current data
+    const vacations = JSON.parse(fs.readFileSync(vacationsFile, 'utf8'))
+    const employees = JSON.parse(fs.readFileSync(employeesFile, 'utf8'))
+
+    // Create new vacation
+    const newVacation = {
+      id: `vac_${Date.now()}`,
       employee_id: body.employee_id,
       start_date: body.start_date,
       end_date: body.end_date,
-      note: body.note || null,
-      working_days: workingDays
+      days: parseFloat(body.days),
+      reason: body.reason || 'Urlaub',
+      created_at: new Date().toISOString()
     }
-    
-    const { data: vacation, error } = await (supabase as any)
-      .from('vacations')
-      .insert(vacationData)
-      .select(`
-        *,
-        employees:employee_id (
-          id,
-          name,
-          region_code
-        )
-      `)
-      .single()
-    
-    if (error) {
-      console.error(`[${requestId}] Error creating vacation:`, error)
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: `Failed to create vacation: ${error.message}`,
-        requestId
-      }, { status: 500 })
+
+    // Add to vacations array
+    vacations.push(newVacation)
+
+    // Update employee used/remaining days
+    const employeeIndex = employees.findIndex(emp => emp.id === newVacation.employee_id)
+
+    if (employeeIndex !== -1) {
+      const oldUsed = employees[employeeIndex].used
+      employees[employeeIndex].used = parseFloat(employees[employeeIndex].used) + parseFloat(newVacation.days)
+      employees[employeeIndex].remaining = employees[employeeIndex].allowance - employees[employeeIndex].used
+
+      // Save updated employees
+      fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2))
+      console.log(`📊 Updated employee ${employees[employeeIndex].name}: used ${oldUsed} → ${employees[employeeIndex].used}, remaining: ${employees[employeeIndex].remaining}`)
     }
-    
-    console.log(`[${requestId}] Successfully created vacation with ${workingDays} working days`)
-    
-    return NextResponse.json<ApiResponse<Vacation>>({
-      ok: true,
-      data: vacation,
-      requestId
-    }, { status: 201 })
-    
+
+    // Save updated vacations
+    fs.writeFileSync(vacationsFile, JSON.stringify(vacations, null, 2))
+
+    console.log(`➕ Added vacation: ${newVacation.days} days for employee ${newVacation.employee_id}`)
+
+    return NextResponse.json({
+      success: true,
+      vacation: newVacation,
+      employees: employees
+    })
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error creating vacation'
-    console.error(`[${requestId}] Error:`, errorMessage)
-    
-    return NextResponse.json<ApiResponse>({
-      ok: false,
-      error: errorMessage,
-      requestId
-    }, { status: 500 })
+    console.error('❌ Error:', errorMessage)
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+}
+
+// DELETE /api/vacations - Delete vacation
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  try {
+    const body = await req.json()
+    const { id } = body
+
+    console.log(`🗑️ Deleting vacation from shared storage: ${id}`)
+
+    // Read current data
+    const vacations = JSON.parse(fs.readFileSync(vacationsFile, 'utf8'))
+    const employees = JSON.parse(fs.readFileSync(employeesFile, 'utf8'))
+
+    // Find vacation to delete
+    const vacationIndex = vacations.findIndex(vac => vac.id === id)
+
+    if (vacationIndex === -1) {
+      return NextResponse.json({ error: 'Vacation not found' }, { status: 404 })
+    }
+
+    const deletedVacation = vacations[vacationIndex]
+    vacations.splice(vacationIndex, 1)
+
+    // Update employee used/remaining days
+    const employeeIndex = employees.findIndex(emp => emp.id === deletedVacation.employee_id)
+
+    if (employeeIndex !== -1) {
+      const oldUsed = employees[employeeIndex].used
+      employees[employeeIndex].used = parseFloat(employees[employeeIndex].used) - parseFloat(deletedVacation.days)
+      employees[employeeIndex].remaining = employees[employeeIndex].allowance - employees[employeeIndex].used
+
+      // Save updated employees
+      fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2))
+      console.log(`📊 Reverted employee ${employees[employeeIndex].name}: used ${oldUsed} → ${employees[employeeIndex].used}, remaining: ${employees[employeeIndex].remaining}`)
+    }
+
+    // Save updated vacations
+    fs.writeFileSync(vacationsFile, JSON.stringify(vacations, null, 2))
+
+    console.log(`🗑️ Deleted vacation: ${deletedVacation.id}`)
+
+    return NextResponse.json({
+      success: true,
+      deletedVacation,
+      employees: employees
+    })
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting vacation'
+    console.error('❌ Error:', errorMessage)
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

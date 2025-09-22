@@ -1,202 +1,143 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { ApiResponse, EmployeeInsert, Employee } from '@/types/database'
-import { getCurrentYearBerlin } from '@/lib/vacationCalculations'
-import { mockDb, isMockMode } from '@/lib/mockDatabase'
-import { ABOUTWATER_EMPLOYEES, getAboutWaterEmployeesWithDefaults } from '@/lib/aboutwaterEmployees'
+import fs from 'fs'
+import path from 'path'
 
-// GET /api/employees - Get all employees with vacation summary for a specific year
-export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse<Employee[]>>> {
-  const requestId = crypto.randomUUID()
-  
+// File paths for shared storage
+const dataDir = path.join(process.cwd(), 'data')
+const employeesFile = path.join(dataDir, 'employees.json')
+
+// Default AboutWater employees
+const defaultEmployees = [
+  { id: '1', name: 'Andreas Pöppe', allowance: 38.0, used: 28.5, remaining: 9.5, color: '#FF0000' },
+  { id: '2', name: 'Anna Kropfitsch', allowance: 0.0, used: 0.0, remaining: 0.0, color: '#0000FF' },
+  { id: '3', name: 'Antonio Svagusa', allowance: 26.0, used: 24.0, remaining: 2.0, color: '#008000' },
+  { id: '4', name: 'Carmen Berger', allowance: 40.0, used: 22.0, remaining: 18.0, color: '#FF8000' },
+  { id: '5', name: 'Cengiz Kina', allowance: 0.0, used: 0.0, remaining: 0.0, color: '#800080' },
+  { id: '6', name: 'Christian Irrgang', allowance: 34.0, used: 28.0, remaining: 6.0, color: '#008080' },
+  { id: '7', name: 'Daniel Hegemann', allowance: 32.0, used: 29.0, remaining: 3.0, color: '#8B4513' },
+  { id: '8', name: 'Estaline Philander', allowance: 30.0, used: 22.0, remaining: 8.0, color: '#FF1493' },
+  { id: '9', name: 'Farouk Chasan', allowance: 32.5, used: 28.0, remaining: 4.5, color: '#000080' },
+  { id: '10', name: 'Florian Gräf', allowance: 47.0, used: 27.0, remaining: 20.0, color: '#800000' },
+  { id: '11', name: 'Giorgi Lomidze', allowance: 30.0, used: 0.0, remaining: 30.0, color: '#2F4F4F' },
+  { id: '12', name: 'Hannes Kolm', allowance: 33.0, used: 24.0, remaining: 9.0, color: '#B22222' },
+  { id: '13', name: 'Josefine Mättig', allowance: 29.0, used: 29.0, remaining: 0.0, color: '#228B22' },
+  { id: '14', name: 'Matthias Herbst', allowance: 36.0, used: 23.0, remaining: 13.0, color: '#4B0082' },
+  { id: '15', name: 'Max Sanktjohanser', allowance: 30.0, used: 23.0, remaining: 7.0, color: '#DC143C' },
+  { id: '16', name: 'Michael Reiser', allowance: 20.0, used: 19.5, remaining: 0.5, color: '#00CED1' },
+  { id: '17', name: 'Mihaela Abmayr', allowance: 27.0, used: 19.0, remaining: 8.0, color: '#FF6347' },
+  { id: '18', name: 'Petra Gräf', allowance: 35.0, used: 21.0, remaining: 14.0, color: '#4682B4' },
+  { id: '19', name: 'René Kühn', allowance: 32.5, used: 28.0, remaining: 4.5, color: '#D2691E' },
+  { id: '20', name: 'Safat Majumder', allowance: 30.0, used: 7.0, remaining: 23.0, color: '#FF4500' },
+  { id: '21', name: 'Sönke Rocho', allowance: 41.0, used: 31.0, remaining: 10.0, color: '#8B008B' },
+  { id: '22', name: 'Thierry Brunner', allowance: 37.0, used: 28.0, remaining: 9.0, color: '#556B2F' }
+]
+
+// Initialize files if they don't exist
+function initializeFiles() {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true })
+    console.log('✅ Created data directory')
+  }
+
+  if (!fs.existsSync(employeesFile)) {
+    fs.writeFileSync(employeesFile, JSON.stringify(defaultEmployees, null, 2))
+    console.log('✅ Initialized employees.json with default AboutWater data')
+  }
+}
+
+// GET /api/employees - Get all employees using shared file storage
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    const { searchParams } = new URL(req.url)
-    const year = parseInt(searchParams.get('year') || getCurrentYearBerlin().toString())
-    
-    console.log(`[${requestId}] Fetching employees for year ${year}`)
-    
-    if (isMockMode()) {
-      console.log(`[${requestId}] Using mock database`)
+    console.log('📨 API GET /employees - Using SHARED FILE STORAGE')
 
-      // Initialize with AboutWater employees if empty
-      const existingEmployees = await mockDb.getEmployees()
-      if (existingEmployees.length === 0) {
-        console.log(`[${requestId}] Initializing mock database with AboutWater employees`)
-        const aboutwaterEmployees = getAboutWaterEmployeesWithDefaults()
+    // Initialize files if needed
+    initializeFiles()
 
-        for (const emp of aboutwaterEmployees) {
-          await mockDb.createEmployee({
-            name: emp.name,
-            allowance_days: emp.allowance_days,
-            used_vacation_days: emp.used_vacation_days,
-            remaining_vacation: emp.remaining_vacation,
-            region_code: emp.region,
-            color: emp.color,
-            active: true
-          })
-        }
-      }
+    // Read employees from shared file
+    const employees = JSON.parse(fs.readFileSync(employeesFile, 'utf8'))
+    console.log(`📖 Loaded ${employees.length} employees from SHARED STORAGE`)
 
-      const employees = await mockDb.getEmployees()
-      console.log(`[${requestId}] Successfully fetched ${employees.length} employees (mock mode)`)
+    return NextResponse.json(employees)
 
-      return NextResponse.json<ApiResponse<Employee[]>>({
-        ok: true,
-        data: employees,
-        requestId
-      })
-    }
-    
-    // Check if AboutWater employees exist, initialize if missing
-    const { data: aboutwaterCheck } = await supabase
-      .from('employees')
-      .select('name')
-      .eq('name', 'Andreas Pöppe')
-      .eq('active', true)
-      .limit(1)
-
-    if (!aboutwaterCheck || aboutwaterCheck.length === 0) {
-      console.log(`[${requestId}] Initializing database with AboutWater employees`)
-      const aboutwaterEmployees = getAboutWaterEmployeesWithDefaults()
-
-      const employeeInserts: EmployeeInsert[] = aboutwaterEmployees.map(emp => ({
-        name: emp.name,
-        allowance_days: emp.allowance_days,
-        used_vacation_days: emp.used_vacation_days,
-        remaining_vacation: emp.remaining_vacation,
-        region_code: emp.region,
-        color: emp.color,
-        active: true,
-        created_at: new Date().toISOString()
-      }))
-
-      const { error: insertError } = await (supabase as any)
-        .from('employees')
-        .insert(employeeInserts)
-
-      if (insertError) {
-        console.warn(`[${requestId}] Error initializing employees:`, insertError)
-      } else {
-        console.log(`[${requestId}] Successfully initialized ${employeeInserts.length} AboutWater employees`)
-      }
-    }
-
-    const { data: employees, error } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('active', true)
-      .order('name')
-
-    if (error) {
-      console.error(`[${requestId}] Database error:`, error)
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: `Database error: ${error.message}`,
-        requestId
-      }, { status: 500 })
-    }
-
-    console.log(`[${requestId}] Successfully fetched ${employees?.length || 0} employees`)
-    
-    return NextResponse.json<ApiResponse<Employee[]>>({
-      ok: true,
-      data: employees || [],
-      requestId
-    })
-    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching employees'
-    console.error(`[${requestId}] Error:`, errorMessage)
-    
-    return NextResponse.json<ApiResponse>({
-      ok: false,
-      error: errorMessage,
-      requestId
-    }, { status: 500 })
+    console.error('❌ Error:', errorMessage)
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 
 // POST /api/employees - Create new employee
-export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<Employee>>> {
-  const requestId = crypto.randomUUID()
-  
+export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const body: EmployeeInsert = await req.json()
-    
-    console.log(`[${requestId}] Creating employee:`, { name: body.name, allowance_days: body.allowance_days })
+    const body = await req.json()
+
+    console.log('Creating employee:', { name: body.name, allowance: body.allowance })
 
     // Validate required fields
     if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: 'Employee name is required and cannot be empty',
-        requestId
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Employee name is required and cannot be empty' }, { status: 400 })
     }
 
-    if (!body.allowance_days || body.allowance_days < 1 || body.allowance_days > 50) {
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: 'Allowance days must be between 1 and 50',
-        requestId
-      }, { status: 400 })
+    if (!body.allowance || body.allowance < 1 || body.allowance > 50) {
+      return NextResponse.json({ error: 'Allowance days must be between 1 and 50' }, { status: 400 })
     }
 
-    // Clean the data
-    const cleanEmployee: EmployeeInsert = {
+    // Initialize files
+    initializeFiles()
+
+    // Read current employees
+    const employees = JSON.parse(fs.readFileSync(employeesFile, 'utf8'))
+
+    // Create new employee
+    const newEmployee = {
+      id: `emp_${Date.now()}`,
       name: body.name.trim(),
-      allowance_days: body.allowance_days,
-      used_vacation_days: body.used_vacation_days || 0,
-      remaining_vacation: body.remaining_vacation || body.allowance_days,
-      region_code: body.region_code || 'DE',
-      color: body.color,
-      active: true
-    }
-    
-    if (isMockMode()) {
-      console.log(`[${requestId}] Using mock database to create employee`)
-      const employee = await mockDb.createEmployee(cleanEmployee)
-      
-      console.log(`[${requestId}] Successfully created employee with ID: ${employee.id} (mock mode)`)
-
-      return NextResponse.json<ApiResponse<Employee>>({
-        ok: true,
-        data: employee,
-        requestId
-      }, { status: 201 })
+      allowance: body.allowance,
+      used: 0,
+      remaining: body.allowance,
+      color: body.color || '#1c5975'
     }
 
-    const { data: employee, error } = await (supabase as any)
-      .from('employees')
-      .insert([cleanEmployee])
-      .select()
-      .single()
+    // Add to employees array
+    employees.push(newEmployee)
 
-    if (error) {
-      console.error(`[${requestId}] Database error:`, error)
-      return NextResponse.json<ApiResponse>({
-        ok: false,
-        error: `Failed to create employee: ${error.message}`,
-        requestId
-      }, { status: 500 })
-    }
+    // Save back to file
+    fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2))
 
-    console.log(`[${requestId}] Successfully created employee with ID: ${employee?.id}`)
-    
-    return NextResponse.json<ApiResponse<Employee>>({
-      ok: true,
-      data: employee!,
-      requestId
-    }, { status: 201 })
-    
+    console.log(`Successfully created employee with ID: ${newEmployee.id}`)
+
+    return NextResponse.json({ success: true, employee: newEmployee }, { status: 201 })
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error creating employee'
-    console.error(`[${requestId}] Error:`, errorMessage)
-    
-    return NextResponse.json<ApiResponse>({
-      ok: false,
-      error: errorMessage,
-      requestId
-    }, { status: 500 })
+    console.error('Error:', errorMessage)
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+}
+
+// PUT /api/employees - Update employees
+export async function PUT(req: NextRequest): Promise<NextResponse> {
+  try {
+    const employees = await req.json()
+
+    console.log('Updating employees:', employees.length)
+
+    // Initialize files
+    initializeFiles()
+
+    // Save employees to file
+    fs.writeFileSync(employeesFile, JSON.stringify(employees, null, 2))
+
+    console.log(`Successfully saved ${employees.length} employees`)
+
+    return NextResponse.json({ success: true })
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error updating employees'
+    console.error('Error:', errorMessage)
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
