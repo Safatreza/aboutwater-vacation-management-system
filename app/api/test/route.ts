@@ -45,7 +45,7 @@ export async function GET() {
       testData.fileSystem.dataDir.canWrite = true
     } catch (writeError) {
       testData.fileSystem.dataDir.canWrite = false
-      testData.fileSystem.dataDir.writeError = writeError instanceof Error ? writeError.message : 'Unknown write error'
+      ;(testData.fileSystem.dataDir as any).writeError = writeError instanceof Error ? writeError.message : 'Unknown write error'
     }
 
     return NextResponse.json(testData)

@@ -36,10 +36,20 @@ const getDefaultEmployees = () => [
 // Check if running on Vercel (read-only filesystem)
 const isVercel = process.env.VERCEL === '1'
 
-// GET /api/vacations - Get all vacations using shared file storage
+// GET /api/vacations - Get all vacations using shared file storage or in-memory for Vercel
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    console.log('📨 API GET /vacations - Using SHARED FILE STORAGE')
+    console.log('📨 API GET /vacations - Starting request')
+
+    // Check if running on Vercel - use in-memory storage
+    if (isVercel) {
+      console.log('🌐 Running on Vercel - using in-memory storage')
+      const inMemoryVacations = (globalThis as any).__VACATIONS__ || []
+      console.log(`📖 Loaded ${inMemoryVacations.length} vacations from in-memory storage`)
+      return NextResponse.json(inMemoryVacations)
+    }
+
+    console.log('💾 Using local file storage')
 
     // Initialize files if needed
     if (!fs.existsSync(vacationsFile)) {
@@ -65,31 +75,62 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     console.log('📍 POST /api/vacations - Starting request')
 
-    // Check if running on Vercel (read-only filesystem)
+    // Parse request body first
+    const body = await req.json()
+    console.log('📍 Received request body:', JSON.stringify(body, null, 2))
+
+    // Check if running on Vercel (read-only filesystem) - use in-memory storage
     if (isVercel) {
-      console.warn('⚠️ Running on Vercel - file system is read-only!')
+      console.log('🌐 Running on Vercel - using in-memory storage for demo')
+
+      // In-memory storage for Vercel (resets on each deployment)
+      const inMemoryVacations = (globalThis as any).__VACATIONS__ || []
+      const inMemoryEmployees = (globalThis as any).__EMPLOYEES__ || [...getDefaultEmployees()]
+
+      // Validate required fields
+      if (!body.employee_id || !body.start_date || !body.end_date || !body.days) {
+        return NextResponse.json({
+          error: 'Validation failed',
+          details: ['employee_id', 'start_date', 'end_date', 'days'].filter(field => !body[field])
+        }, { status: 400 })
+      }
+
+      const newVacation = {
+        id: `vac_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        employee_id: body.employee_id,
+        start_date: body.start_date,
+        end_date: body.end_date,
+        days: parseFloat(body.days.toString()),
+        reason: body.reason || 'Urlaub (ganzer Tag)',
+        created_at: new Date().toISOString()
+      }
+
+      inMemoryVacations.push(newVacation)
+      ;(globalThis as any).__VACATIONS__ = inMemoryVacations
+
+      // Update employee
+      const employeeIndex = inMemoryEmployees.findIndex((emp: any) => emp.id === newVacation.employee_id)
+      if (employeeIndex !== -1) {
+        const employee = inMemoryEmployees[employeeIndex]
+        employee.used = parseFloat(employee.used.toString()) + parseFloat(newVacation.days.toString())
+        employee.remaining = parseFloat(employee.allowance.toString()) - employee.used
+        ;(globalThis as any).__EMPLOYEES__ = inMemoryEmployees
+        console.log(`📊 Updated employee ${employee.name}: used → ${employee.used}, remaining → ${employee.remaining}`)
+      }
+
+      console.log('✅ Successfully added vacation (Vercel in-memory)')
       return NextResponse.json({
-        error: 'File storage not available on Vercel deployment',
-        details: 'This feature requires database integration for production use.',
-        suggestion: 'Please implement Supabase or another database solution'
-      }, { status: 503 })
+        success: true,
+        vacation: newVacation,
+        employees: inMemoryEmployees,
+        message: `Added ${newVacation.days} days vacation (Vercel in-memory demo)`
+      })
     }
 
-    // Parse request body with error handling
-    let body
-    try {
-      body = await req.json()
-      console.log('📍 Received request body:', JSON.stringify(body, null, 2))
-    } catch (parseError) {
-      console.error('❌ Failed to parse request body:', parseError)
-      return NextResponse.json({
-        error: 'Invalid JSON in request body',
-        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
-      }, { status: 400 })
-    }
+    // Body already parsed above for Vercel compatibility
 
     // Validate required fields with detailed feedback
-    const validationErrors = []
+    const validationErrors: string[] = []
     if (!body.employee_id) validationErrors.push('employee_id is required')
     if (!body.start_date) validationErrors.push('start_date is required')
     if (!body.end_date) validationErrors.push('end_date is required')

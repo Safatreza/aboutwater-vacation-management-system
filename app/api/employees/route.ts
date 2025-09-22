@@ -6,6 +6,9 @@ import path from 'path'
 const dataDir = path.join(process.cwd(), 'data')
 const employeesFile = path.join(dataDir, 'employees.json')
 
+// Check if running on Vercel (read-only filesystem)
+const isVercel = process.env.VERCEL === '1'
+
 // Default AboutWater employees
 const defaultEmployees = [
   { id: '1', name: 'Andreas Pöppe', allowance: 38.0, used: 28.5, remaining: 9.5, color: '#FF0000' },
@@ -45,10 +48,20 @@ function initializeFiles() {
   }
 }
 
-// GET /api/employees - Get all employees using shared file storage
+// GET /api/employees - Get all employees using shared file storage or in-memory for Vercel
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    console.log('📨 API GET /employees - Using SHARED FILE STORAGE')
+    console.log('📨 API GET /employees - Starting request')
+
+    // Check if running on Vercel - use in-memory storage
+    if (isVercel) {
+      console.log('🌐 Running on Vercel - using in-memory storage')
+      const inMemoryEmployees = (globalThis as any).__EMPLOYEES__ || [...defaultEmployees]
+      console.log(`📖 Loaded ${inMemoryEmployees.length} employees from in-memory storage`)
+      return NextResponse.json(inMemoryEmployees)
+    }
+
+    console.log('💾 Using local file storage')
 
     // Initialize files if needed
     initializeFiles()
