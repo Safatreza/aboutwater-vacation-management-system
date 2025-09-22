@@ -160,7 +160,7 @@ export const addVacationToPersistentStorage = (employeeId: string, vacationData:
   try {
     // Load current data
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES, getDefaultEmployees())
-    const vacations = loadFromStorage(STORAGE_KEYS.VACATIONS, [])
+    const vacations: StoredVacation[] = loadFromStorage(STORAGE_KEYS.VACATIONS, [])
 
     // Create vacation entry with detailed data
     const newVacation: StoredVacation = {
@@ -307,7 +307,7 @@ export const generateVacationExcel = async (): Promise<boolean> => {
       { header: 'Created', key: 'created', width: 20 }
     ]
 
-    vacations.forEach(vacation => {
+    vacations.forEach((vacation: StoredVacation) => {
       const employee = employees.find(emp => emp.id === vacation.employee_id)
       vacationSheet.addRow({
         employee: employee?.name || vacation.employee_id,

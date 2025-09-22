@@ -21,7 +21,9 @@
       "Bash(git restore:*)",
       "Bash(rm:*)",
       "Bash(mv:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []

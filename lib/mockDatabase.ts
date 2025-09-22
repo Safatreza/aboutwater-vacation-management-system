@@ -640,7 +640,7 @@ export const mockDb = {
       employee_id: data.employee_id,
       start_date: data.start_date,
       end_date: data.end_date,
-      note: data.note || null,
+      note: data.note || undefined,
       working_days: data.working_days || 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
