@@ -146,7 +146,7 @@ export default function VacationCalendar({ year, employees, vacations }: Vacatio
   const renderCalendar = () => {
     const daysInMonth = getDaysInMonth(currentMonth, currentYear)
     const firstDay = getFirstDayOfMonth(currentMonth, currentYear)
-    const days = []
+    const days: JSX.Element[] = []
 
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {

@@ -147,7 +147,17 @@ export default function CalendarPage() {
 
   const generateCalendarDays = () => {
     const year = selectedYear
-    const months = []
+    const months = [] as Array<{
+      name: string
+      days: Array<{
+        date: number
+        dateString: string
+        vacations: any[]
+        holidays: any[]
+        isWeekend: boolean
+        isHoliday: boolean
+      }>
+    }>
 
     for (let month = 0; month < 12; month++) {
       const firstDay = new Date(year, month, 1)
@@ -156,7 +166,14 @@ export default function CalendarPage() {
 
       const monthData = {
         name: firstDay.toLocaleDateString('de-DE', { month: 'long' }),
-        days: []
+        days: [] as Array<{
+          date: number
+          dateString: string
+          vacations: any[]
+          holidays: any[]
+          isWeekend: boolean
+          isHoliday: boolean
+        }>
       }
 
       for (let day = 1; day <= daysInMonth; day++) {

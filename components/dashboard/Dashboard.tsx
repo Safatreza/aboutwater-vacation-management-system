@@ -140,7 +140,7 @@ export default function Dashboard() {
 
   // Helper function to generate date range
   const generateDateRange = (startDate: string, endDate: string): string[] => {
-    const dates = []
+    const dates: string[] = []
     const current = new Date(startDate)
     const end = new Date(endDate)
     
