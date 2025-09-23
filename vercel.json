@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "aboutwater-vacation-management",
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "regions": ["fra1"]
+}

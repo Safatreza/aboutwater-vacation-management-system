@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1",
+    "name": "Andreas Pöppe",
+    "allowance": 38,
+    "used": 32.5,
+    "remaining": 5.5,
+    "color": "#FF0000"
+  },
+  {
+    "id": "2",
+    "name": "Anna Kropfitsch",
+    "allowance": 0,
+    "used": 2,
+    "remaining": -2,
+    "color": "#0000FF"
+  },
+  {
+    "id": "20",
+    "name": "Safat Majumder",
+    "allowance": 30,
+    "used": 7,
+    "remaining": 23,
+    "color": "#FF4500"
+  }
+]
