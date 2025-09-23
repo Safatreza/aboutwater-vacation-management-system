@@ -13,8 +13,9 @@ import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
 import ExcelImportModal from './ExcelImportModal'
-import { getEmployees, getVacations, getConnectionStatus } from '@/lib/sharedStorage'
+// Using API endpoints instead of shared storage
 import { generateExcelFromDatabase } from '@/lib/database'
+import { enableAutoBackup, saveDataToLocalStorage, exportBackupAsFile, loadDataFromLocalStorage } from '@/lib/dataBackup'
 
 export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -48,17 +49,9 @@ export default function Dashboard() {
     '#DC2626', '#7C3AED', '#DB2777', '#374151', '#047857'
   ]
 
-  // Fetch employees and vacations data from hybrid storage
+  // Fetch employees and vacations data from API
   useEffect(() => {
-    const loadData = async () => {
-      // Check connection status
-      const status = await getConnectionStatus()
-      setConnectionStatus(status)
-
-      // Load data regardless of connection status
-      fetchEmployeesAndVacations()
-    }
-    loadData()
+    fetchEmployeesAndVacations()
   }, [selectedYear, refreshKey])
 
   // Listen for database changes for real-time updates
@@ -72,20 +65,29 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [selectedYear])
 
+  // Enable auto-backup for data persistence
+  useEffect(() => {
+    enableAutoBackup()
+  }, [])
+
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {
-      // Use real shared storage (file-based multi-user system)
-      const dbEmployees = await getEmployees()
-      const dbVacations = await getVacations()
+      // Fetch employees from API
+      const employeesResponse = await fetch('/api/employees')
+      const dbEmployees = await employeesResponse.json()
+
+      // Fetch vacations from API
+      const vacationsResponse = await fetch('/api/vacations')
+      const dbVacations = await vacationsResponse.json()
 
       // Filter vacations by selected year
-      const yearVacations = dbVacations.filter(vacation => {
+      const yearVacations = dbVacations.filter((vacation: any) => {
         const vacationYear = new Date(vacation.start_date).getFullYear()
         return vacationYear === selectedYear
       })
 
-      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations from SHARED STORAGE`)
+      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations from API`)
 
       // Convert shared storage format to dashboard format
       const employeesWithColors = dbEmployees.map((emp: any, index: number) => ({

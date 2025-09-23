@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, Eye, Users, Trash2, RefreshCw } from 'lucide-react'
-import { getEmployees, getVacations } from '@/lib/sharedStorage'
+// Using API endpoints instead of shared storage
 
 interface EmployeeSummary {
   employee_id: string
@@ -32,44 +32,25 @@ export default function EmployeeTable({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch employee summaries from shared storage API
+  // Fetch employee summaries from API endpoints
   const fetchEmployees = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // Get data from shared storage API for consistency with AddVacationModal
-      console.log('📡 EmployeeTable: Loading employees from shared storage API')
-      const apiEmployees = await getEmployees()
+      // Get data from API endpoints
+      console.log('📡 EmployeeTable: Loading employees from API')
+      const employeesResponse = await fetch('/api/employees')
+      const apiEmployees = await employeesResponse.json()
 
-      if (apiEmployees && apiEmployees.length > 0) {
-        console.log(`📖 EmployeeTable: Loading ${apiEmployees.length} employees from shared storage`)
-
-        // Convert API format to EmployeeTable format
-        const employeeSummaries: EmployeeSummary[] = apiEmployees.map(emp => ({
-          employee_id: emp.id,
-          employee_name: emp.name,
-          vacation_allowance: emp.allowance,
-          used_days: emp.used,
-          remaining_days: emp.remaining,
-          color: emp.color
-        }))
-
-        setEmployees(employeeSummaries)
-        setLoading(false)
-        return
+      if (!employeesResponse.ok) {
+        throw new Error(`HTTP ${employeesResponse.status}: ${employeesResponse.statusText}`)
       }
 
-      // FALLBACK: If API fails, try direct API endpoint
-      console.log('📡 EmployeeTable: Falling back to direct API endpoint')
-      const response = await fetch(`/api/employees`)
+      console.log(`📖 EmployeeTable: Loading ${apiEmployees.length} employees from API`)
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const directEmployees = await response.json()
-      const employeeSummaries: EmployeeSummary[] = directEmployees.map((emp: any) => ({
+      // Convert API format to EmployeeTable format
+      const employeeSummaries: EmployeeSummary[] = apiEmployees.map(emp => ({
         employee_id: emp.id,
         employee_name: emp.name,
         vacation_allowance: emp.allowance,

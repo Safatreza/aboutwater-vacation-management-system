@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, Trash2 } from 'lucide-react'
-import { getVacations, deleteVacation } from '@/lib/sharedStorage'
+// Using API endpoints instead of shared storage
 
 interface Vacation {
   id: string
@@ -34,14 +34,16 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     try {
       setLoading(true)
 
-      // Use real shared storage (file-based multi-user system)
-      const dbVacations = await getVacations()
+      // Fetch vacations from API
+      const response = await fetch('/api/vacations')
+      const dbVacations = await response.json()
+
       const employeeVacations = dbVacations.filter((vacation: any) => {
         const vacationYear = new Date(vacation.start_date).getFullYear()
         return vacation.employee_id === employeeId && vacationYear === year
       })
 
-      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId} from SHARED STORAGE`)
+      console.log(`📖 Loaded ${employeeVacations.length} vacations for employee ${employeeId} from API`)
 
       // Convert to expected format
       const formattedVacations: Vacation[] = employeeVacations.map((vacation: any) => ({
@@ -72,13 +74,25 @@ export default function ViewVacationsDrawer({ employeeId, year, onClose, onUpdat
     }
 
     try {
-      // Use real shared storage (file-based multi-user system)
-      await deleteVacation(vacationId)
+      // Delete vacation via API
+      const response = await fetch('/api/vacations', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: vacationId })
+      })
 
-      console.log('✅ Vacation deleted from SHARED STORAGE:', vacationId)
-      alert('✅ Vacation deleted from shared storage - all users updated!')
-      fetchVacations()
-      onUpdate()
+      const result = await response.json()
+
+      if (result.success) {
+        console.log('✅ Vacation deleted from API:', vacationId)
+        alert('✅ Vacation deleted successfully!')
+        fetchVacations()
+        onUpdate()
+      } else {
+        throw new Error(result.error || 'Failed to delete vacation')
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       alert(`❌ Failed to delete vacation: ${errorMessage}`)
