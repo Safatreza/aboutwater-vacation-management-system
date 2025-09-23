@@ -1,19 +1,7 @@
 // Environment variable validation helper
 export function validateEnvironment(): { valid: boolean; error?: string } {
-  const requiredEnvVars = {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  }
-
-  for (const [key, value] of Object.entries(requiredEnvVars)) {
-    if (!value || value === 'placeholder-key' || value.includes('placeholder')) {
-      return {
-        valid: false,
-        error: `Environment variable ${key} is not configured. Please set up your environment variables in Vercel dashboard.`
-      }
-    }
-  }
-
+  // No environment validation needed for in-memory storage
+  console.log('✅ Environment validation skipped (using in-memory storage)')
   return { valid: true }
 }
 

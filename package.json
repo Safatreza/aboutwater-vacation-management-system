@@ -13,7 +13,7 @@
     "analyze": "ANALYZE=true next build",
     "type-check": "tsc --noEmit",
     "vercel-build": "next build",
-    "db:migrate": "echo 'Run the SQL migration from create-tables.js or use Supabase dashboard'",
+    "db:migrate": "echo 'Database migration not needed - using in-memory storage'",
     "health-check": "curl -f $VERCEL_URL/api/health || curl -f http://localhost:3000/api/health || exit 1",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -21,8 +21,6 @@
     "test:ci": "jest --ci --coverage --watchAll=false"
   },
   "dependencies": {
-    "@supabase/auth-helpers-nextjs": "^0.10.0",
-    "@supabase/supabase-js": "^2.57.4",
     "@tailwindcss/forms": "^0.5.10",
     "@types/exceljs": "^0.5.3",
     "@types/nodemailer": "^7.0.1",
