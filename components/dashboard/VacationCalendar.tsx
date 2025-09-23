@@ -14,6 +14,8 @@ interface VacationDay {
   employeeName: string
   date: string
   color: string
+  type?: string
+  status?: string
 }
 
 interface VacationCalendarProps {
@@ -203,13 +205,13 @@ export default function VacationCalendar({ year, employees, vacations }: Vacatio
             {dayVacations.slice(0, 3).map((vacation, index) => (
               <div
                 key={`${vacation.employeeId}-${index}`}
-                className="text-xs px-1 py-0.5 rounded border text-white truncate shadow-sm"
+                className="text-xs px-1 py-0.5 rounded border text-white truncate shadow-sm cursor-pointer hover:opacity-100 transition-opacity"
                 style={{
                   backgroundColor: vacation.color,
                   borderColor: vacation.color,
                   opacity: 0.9
                 }}
-                title={`${vacation.employeeName} - Urlaub`}
+                title={`${vacation.employeeName} - Urlaub\nDatum: ${date}\nTyp: ${vacation.type || 'Urlaub'}\nStatus: ${vacation.status || 'Genehmigt'}`}
               >
                 {vacation.employeeName}
               </div>

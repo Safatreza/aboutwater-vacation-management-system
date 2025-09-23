@@ -14,7 +14,7 @@ import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
 import ExcelImportModal from './ExcelImportModal'
 // Using API endpoints instead of shared storage
-import { generateExcelFromDatabase } from '@/lib/database'
+import { generateExcelFromDatabase } from '@/lib/databaseOperations'
 import { enableAutoBackup, saveDataToLocalStorage, exportBackupAsFile, loadDataFromLocalStorage } from '@/lib/dataBackup'
 
 export default function Dashboard() {
@@ -288,6 +288,30 @@ export default function Dashboard() {
               >
                 <Download className={`h-4 w-4 mr-2 ${backingUp ? 'animate-pulse' : ''}`} />
                 {backingUp ? 'Export läuft...' : 'Excel Export'}
+              </button>
+
+              <button
+                onClick={async () => {
+                  setBackingUp(true)
+                  try {
+                    const success = await exportBackupAsFile()
+                    if (success) {
+                      alert('JSON Backup erfolgreich heruntergeladen!')
+                    } else {
+                      alert('JSON Backup fehlgeschlagen!')
+                    }
+                  } catch (error) {
+                    console.error('Backup error:', error)
+                    alert('JSON Backup fehlgeschlagen: ' + (error instanceof Error ? error.message : 'Unknown error'))
+                  } finally {
+                    setBackingUp(false)
+                  }
+                }}
+                disabled={backingUp}
+                className="btn-aboutwater-outline disabled:opacity-50"
+              >
+                <Database className={`h-4 w-4 mr-2 ${backingUp ? 'animate-pulse' : ''}`} />
+                JSON Backup
               </button>
 
               <button
