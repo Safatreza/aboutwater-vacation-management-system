@@ -196,11 +196,21 @@ const bavariaHolidays = [
 // Static route to prevent dynamic server usage errors
 export async function GET() {
   try {
+    const publicHolidays = bavariaHolidays.filter(h => h.category === 'Feiertag')
+    const schoolHolidays = bavariaHolidays.filter(h => h.category === 'Ferien')
+
     return NextResponse.json({
       ok: true,
-      data: bavariaHolidays
+      total: bavariaHolidays.length,
+      public_holidays: publicHolidays,
+      public_holidays_count: publicHolidays.length,
+      school_holidays: schoolHolidays,
+      school_holidays_count: schoolHolidays.length,
+      data: bavariaHolidays,
+      all_holidays: bavariaHolidays
     })
   } catch (error: any) {
+    console.error('❌ HOLIDAYS API ERROR:', error)
     return NextResponse.json({
       ok: false,
       error: error.message

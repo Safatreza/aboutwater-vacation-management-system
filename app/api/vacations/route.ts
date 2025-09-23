@@ -1,35 +1,10 @@
 import { NextResponse } from 'next/server'
-
-// In-memory storage (resets on redeploy but works for testing)
-let vacations: any[] = []
-let employees = [
-  { id: '1', name: 'Andreas Pöppe', allowance: 38.0, used: 28.5, remaining: 9.5, color: '#FF0000' },
-  { id: '2', name: 'Anna Kropfitsch', allowance: 0.0, used: 0.0, remaining: 0.0, color: '#0000FF' },
-  { id: '3', name: 'Antonio Svagusa', allowance: 26.0, used: 24.0, remaining: 2.0, color: '#008000' },
-  { id: '4', name: 'Carmen Berger', allowance: 40.0, used: 22.0, remaining: 18.0, color: '#FF8000' },
-  { id: '5', name: 'Cengiz Kina', allowance: 0.0, used: 0.0, remaining: 0.0, color: '#800080' },
-  { id: '6', name: 'Christian Irrgang', allowance: 34.0, used: 28.0, remaining: 6.0, color: '#008080' },
-  { id: '7', name: 'Daniel Hegemann', allowance: 32.0, used: 29.0, remaining: 3.0, color: '#8B4513' },
-  { id: '8', name: 'Estaline Philander', allowance: 30.0, used: 22.0, remaining: 8.0, color: '#FF1493' },
-  { id: '9', name: 'Farouk Chasan', allowance: 32.5, used: 28.0, remaining: 4.5, color: '#000080' },
-  { id: '10', name: 'Florian Gräf', allowance: 47.0, used: 27.0, remaining: 20.0, color: '#800000' },
-  { id: '11', name: 'Giorgi Lomidze', allowance: 30.0, used: 0.0, remaining: 30.0, color: '#2F4F4F' },
-  { id: '12', name: 'Hannes Kolm', allowance: 33.0, used: 24.0, remaining: 9.0, color: '#B22222' },
-  { id: '13', name: 'Josefine Mättig', allowance: 29.0, used: 29.0, remaining: 0.0, color: '#228B22' },
-  { id: '14', name: 'Matthias Herbst', allowance: 36.0, used: 23.0, remaining: 13.0, color: '#4B0082' },
-  { id: '15', name: 'Max Sanktjohanser', allowance: 30.0, used: 23.0, remaining: 7.0, color: '#DC143C' },
-  { id: '16', name: 'Michael Reiser', allowance: 20.0, used: 19.5, remaining: 0.5, color: '#00CED1' },
-  { id: '17', name: 'Mihaela Abmayr', allowance: 27.0, used: 19.0, remaining: 8.0, color: '#FF6347' },
-  { id: '18', name: 'Petra Gräf', allowance: 35.0, used: 21.0, remaining: 14.0, color: '#4682B4' },
-  { id: '19', name: 'René Kühn', allowance: 32.5, used: 28.0, remaining: 4.5, color: '#D2691E' },
-  { id: '20', name: 'Safat Majumder', allowance: 30.0, used: 7.0, remaining: 23.0, color: '#FF4500' },
-  { id: '21', name: 'Sönke Rocho', allowance: 41.0, used: 31.0, remaining: 10.0, color: '#8B008B' },
-  { id: '22', name: 'Thierry Brunner', allowance: 37.0, used: 28.0, remaining: 9.0, color: '#556B2F' }
-]
+import { getVacations, getEmployees, addVacation, removeVacation } from '@/lib/sharedData'
 
 // GET /api/vacations - Get all vacations
 export async function GET() {
   try {
+    const vacations = getVacations()
     console.log('📨 GET /api/vacations - returning vacations:', vacations.length)
     return NextResponse.json(vacations)
   } catch (error: any) {
@@ -40,11 +15,13 @@ export async function GET() {
 
 // POST /api/vacations - Create new vacation
 export async function POST(request: Request) {
+  console.log('🔥 VACATION POST REQUEST RECEIVED')
+
   try {
     console.log('📍 POST /api/vacations - starting')
 
     const body = await request.json()
-    console.log('📍 Received vacation data:', body)
+    console.log('📝 Request body:', JSON.stringify(body, null, 2))
 
     // Validate required fields
     if (!body.employee_id) {
@@ -70,23 +47,35 @@ export async function POST(request: Request) {
       created_at: new Date().toISOString()
     }
 
-    console.log('📍 Created vacation object:', newVacation)
+    console.log('✅ Vacation created:', JSON.stringify(newVacation, null, 2))
 
-    // Add to in-memory storage
-    vacations.push(newVacation)
+    // Add to shared storage
+    addVacation(newVacation)
+    const vacations = getVacations()
+    console.log('📊 Total vacations in storage:', vacations.length)
 
     // Update employee used days
+    const employees = getEmployees()
     const employee = employees.find(emp => emp.id === body.employee_id)
-    console.log('📍 Found employee:', employee)
+    console.log('🔍 Found employee:', employee ? employee.name : 'NOT FOUND')
 
     if (employee) {
       const currentUsed = parseFloat(employee.used.toString())
       const vacationDays = parseFloat(newVacation.days.toString())
+      const oldUsed = employee.used
+      const oldRemaining = employee.remaining
 
       employee.used = currentUsed + vacationDays
       employee.remaining = employee.allowance - employee.used
 
-      console.log('📍 Updated employee:', employee)
+      console.log('📊 Updated employee:', {
+        name: employee.name,
+        oldUsed,
+        newUsed: employee.used,
+        oldRemaining,
+        newRemaining: employee.remaining,
+        vacationDays
+      })
     }
 
     console.log('✅ POST /api/vacations - success')
@@ -97,7 +86,11 @@ export async function POST(request: Request) {
     })
 
   } catch (error: any) {
-    console.error('❌ POST /api/vacations error:', error)
+    console.error('❌ VACATION POST ERROR:', error)
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack
+    })
     return NextResponse.json({
       error: 'Failed to add vacation',
       details: error.message
@@ -113,17 +106,19 @@ export async function DELETE(request: Request) {
 
     console.log(`🗑️ Deleting vacation: ${id}`)
 
-    // Find vacation to delete
-    const vacationIndex = vacations.findIndex(vac => vac.id === id)
+    // Find vacation to delete from shared storage
+    const vacations = getVacations()
+    const deletedVacation = vacations.find(vac => vac.id === id)
 
-    if (vacationIndex === -1) {
+    if (!deletedVacation) {
       return NextResponse.json({ error: 'Vacation not found' }, { status: 404 })
     }
 
-    const deletedVacation = vacations[vacationIndex]
-    vacations.splice(vacationIndex, 1)
+    // Remove from shared storage
+    removeVacation(id)
 
     // Update employee used/remaining days
+    const employees = getEmployees()
     const employee = employees.find(emp => emp.id === deletedVacation.employee_id)
 
     if (employee) {
