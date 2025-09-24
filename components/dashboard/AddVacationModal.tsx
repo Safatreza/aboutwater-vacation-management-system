@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, AlertTriangle } from 'lucide-react'
-import { addVacation, getEmployees } from '@/lib/sharedStorage'
+import { addVacation, fetchEmployees } from '@/lib/api'
 
 interface AddVacationModalProps {
   employeeId: string
@@ -29,14 +29,14 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
       setErrors([]) // Clear any previous errors
 
       try {
-        console.log('🔍 AddVacationModal: Loading employees from shared storage for ID:', employeeId)
-        const employees = await getEmployees()
+        console.log('🔍 AddVacationModal: Loading employees from centralized API for ID:', employeeId)
+        const employees = await fetchEmployees()
         const emp = employees.find(e => e.id === employeeId)
         console.log('📋 AddVacationModal: Available employees:', employees.map(e => ({ id: e.id, name: e.name })))
         console.log('✅ AddVacationModal: Found employee:', emp)
         setEmployee(emp)
       } catch (error) {
-        console.error('❌ AddVacationModal: Failed to load employee from API:', error)
+        console.error('❌ AddVacationModal: Failed to load employee from centralized API:', error)
         setEmployee(null)
       } finally {
         setLoadingEmployee(false)
@@ -128,7 +128,7 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
       // Calculate vacation days
       const dayCount = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-      // Use real shared storage (file-based multi-user system)
+      // Use centralized API to add vacation
       const result = await addVacation({
         employee_id: employeeId,
         start_date: startDate,
@@ -137,10 +137,10 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
         reason: note.trim() || 'Urlaub'
       })
 
-      console.log('✅ Vacation saved to SHARED STORAGE:', result)
+      console.log('✅ AddVacationModal: Vacation added via centralized API:', result)
 
-      // Show success message with multi-user confirmation
-      alert(`✅ Vacation added to SHARED STORAGE!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\n\n🌐 Data is now synchronized across all users and browsers!`)
+      // Show success message
+      alert(`✅ Vacation added successfully!\nEmployee: ${employee?.name || 'Unknown'}\nPeriod: ${startDate} to ${endDate}\nDays: ${dayCount}\n\n🔄 Dashboard will refresh with updated data!`)
 
       // Clear form
       setStartDate('')

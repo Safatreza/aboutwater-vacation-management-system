@@ -13,7 +13,8 @@ import ViewVacationsDrawer from './ViewVacationsDrawer'
 import HolidayManagement from './HolidayManagement'
 import VacationCalendar from './VacationCalendar'
 import ExcelImportModal from './ExcelImportModal'
-// Using API endpoints instead of shared storage
+// Using centralized API layer
+import { fetchAllData } from '@/lib/api'
 import { generateExcelFromDatabase } from '@/lib/databaseOperations'
 import { enableAutoBackup, saveDataToLocalStorage, exportBackupAsFile, loadDataFromLocalStorage } from '@/lib/dataBackup'
 
@@ -73,13 +74,10 @@ export default function Dashboard() {
   const fetchEmployeesAndVacations = async () => {
     setLoading(true)
     try {
-      // Fetch employees from API
-      const employeesResponse = await fetch('/api/employees')
-      const dbEmployees = await employeesResponse.json()
+      console.log('🔄 Dashboard: Fetching fresh data from API...')
 
-      // Fetch vacations from API
-      const vacationsResponse = await fetch('/api/vacations')
-      const dbVacations = await vacationsResponse.json()
+      // Use centralized API to fetch all data
+      const { employees: dbEmployees, vacations: dbVacations } = await fetchAllData()
 
       // Filter vacations by selected year
       const yearVacations = dbVacations.filter((vacation: any) => {
@@ -87,9 +85,9 @@ export default function Dashboard() {
         return vacationYear === selectedYear
       })
 
-      console.log(`📖 Dashboard loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations from API`)
+      console.log(`📖 Dashboard: Loaded ${dbEmployees.length} employees and ${yearVacations.length} vacations from centralized API`)
 
-      // Convert shared storage format to dashboard format
+      // Convert API format to dashboard format
       const employeesWithColors = dbEmployees.map((emp: any, index: number) => ({
         id: emp.id,
         name: emp.name,
@@ -132,9 +130,10 @@ export default function Dashboard() {
 
       setVacations(vacationDates)
     } catch (error) {
-      console.error('Error fetching data from shared storage:', error)
+      console.error('❌ Dashboard: Error fetching data from API:', error)
       setEmployees([])
       setVacations([])
+      alert(`Failed to load data: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -160,8 +159,15 @@ export default function Dashboard() {
   }
 
   const handleRefresh = () => {
+    console.log('🔄 Dashboard: Manual refresh triggered')
     setRefreshKey(prev => prev + 1)
     fetchEmployeesAndVacations() // Also refresh calendar data
+  }
+
+  const handleVacationSuccess = () => {
+    console.log('🎉 Dashboard: Vacation added successfully, forcing immediate refresh')
+    // Force immediate UI refresh when vacation is added
+    fetchEmployeesAndVacations()
   }
 
   const handleSyncHolidays = async () => {
@@ -419,7 +425,7 @@ export default function Dashboard() {
             setShowAddVacation(false)
             setSelectedEmployeeId(null)
           }}
-          onSuccess={handleRefresh}
+          onSuccess={handleVacationSuccess}
         />
       )}
 
