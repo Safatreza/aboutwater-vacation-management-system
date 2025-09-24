@@ -1,12 +1,28 @@
 import { NextResponse } from 'next/server'
-import { getVacations, getEmployees, addVacation, removeVacation } from '@/lib/sharedData'
+import { vacations } from '@/lib/supabaseStorage'
 
-// GET /api/vacations - Get all vacations
-export async function GET() {
+// GET /api/vacations - Get all vacations from Supabase
+export async function GET(request: Request) {
   try {
-    const vacations = getVacations()
-    console.log('📨 GET /api/vacations - returning vacations:', vacations.length)
-    return NextResponse.json(vacations)
+    const { searchParams } = new URL(request.url)
+    const employeeId = searchParams.get('employee_id')
+    const year = searchParams.get('year')
+
+    console.log('📨 GET /api/vacations - starting', { employeeId, year })
+
+    let vacationList
+
+    if (employeeId) {
+      vacationList = await vacations.getByEmployee(employeeId)
+    } else if (year) {
+      vacationList = await vacations.getByYear(parseInt(year))
+    } else {
+      vacationList = await vacations.getAll()
+    }
+
+    console.log(`📖 Loaded ${vacationList.length} vacations from Supabase`)
+
+    return NextResponse.json(vacationList)
   } catch (error: any) {
     console.error('❌ GET /api/vacations error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -36,106 +52,87 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'end_date is required' }, { status: 400 })
     }
 
-    // Create vacation entry
-    const newVacation = {
-      id: `vac_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    if (!body.working_days && !body.days) {
+      return NextResponse.json({ error: 'working_days or days is required' }, { status: 400 })
+    }
+
+    // Create new vacation in Supabase
+    const newVacation = await vacations.create({
       employee_id: body.employee_id,
       start_date: body.start_date,
       end_date: body.end_date,
-      days: parseFloat(body.days?.toString() || '1'),
-      reason: body.reason || 'Urlaub (ganzer Tag)',
-      created_at: new Date().toISOString()
-    }
+      working_days: body.working_days || body.days,
+      note: body.note || body.reason || null
+    })
 
-    console.log('✅ Vacation created:', JSON.stringify(newVacation, null, 2))
+    console.log(`✅ Successfully created vacation for employee ${body.employee_id}`)
+    console.log('📋 Vacation details:', {
+      id: newVacation.id,
+      dates: `${newVacation.start_date} to ${newVacation.end_date}`,
+      workingDays: newVacation.working_days
+    })
 
-    // Add to shared storage
-    addVacation(newVacation)
-    const vacations = getVacations()
-    console.log('📊 Total vacations in storage:', vacations.length)
-
-    // Update employee used days
-    const employees = getEmployees()
-    const employee = employees.find(emp => emp.id === body.employee_id)
-    console.log('🔍 Found employee:', employee ? employee.name : 'NOT FOUND')
-
-    if (employee) {
-      const currentUsed = parseFloat(employee.used.toString())
-      const vacationDays = parseFloat(newVacation.days.toString())
-      const oldUsed = employee.used
-      const oldRemaining = employee.remaining
-
-      employee.used = currentUsed + vacationDays
-      employee.remaining = employee.allowance - employee.used
-
-      console.log('📊 Updated employee:', {
-        name: employee.name,
-        oldUsed,
-        newUsed: employee.used,
-        oldRemaining,
-        newRemaining: employee.remaining,
-        vacationDays
-      })
-    }
-
-    console.log('✅ POST /api/vacations - success')
     return NextResponse.json({
       success: true,
-      vacation: newVacation,
-      employees: employees
+      vacation: newVacation
+    }, { status: 201 })
+
+  } catch (error: any) {
+    console.error('❌ POST /api/vacations error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// PUT /api/vacations - Update vacation
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json()
+
+    console.log('📍 PUT /api/vacations - updating vacation:', body.id)
+
+    // Validate required fields
+    if (!body.id) {
+      return NextResponse.json({ error: 'Vacation ID is required' }, { status: 400 })
+    }
+
+    const updatedVacation = await vacations.update(body.id, {
+      employee_id: body.employee_id,
+      start_date: body.start_date,
+      end_date: body.end_date,
+      working_days: body.working_days || body.days,
+      note: body.note || body.reason || null
+    })
+
+    console.log(`✅ Successfully updated vacation: ${updatedVacation.id}`)
+
+    return NextResponse.json({
+      success: true,
+      vacation: updatedVacation
     })
 
   } catch (error: any) {
-    console.error('❌ VACATION POST ERROR:', error)
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack
-    })
-    return NextResponse.json({
-      error: 'Failed to add vacation',
-      details: error.message
-    }, { status: 500 })
+    console.error('❌ PUT /api/vacations error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
 // DELETE /api/vacations - Delete vacation
 export async function DELETE(request: Request) {
   try {
-    const body = await request.json()
-    const { id } = body
+    const { searchParams } = new URL(request.url)
+    const vacationId = searchParams.get('id')
 
-    console.log(`🗑️ Deleting vacation: ${id}`)
-
-    // Find vacation to delete from shared storage
-    const vacations = getVacations()
-    const deletedVacation = vacations.find(vac => vac.id === id)
-
-    if (!deletedVacation) {
-      return NextResponse.json({ error: 'Vacation not found' }, { status: 404 })
+    if (!vacationId) {
+      return NextResponse.json({ error: 'Vacation ID is required' }, { status: 400 })
     }
 
-    // Remove from shared storage
-    removeVacation(id)
+    console.log('📍 DELETE /api/vacations - deleting vacation:', vacationId)
 
-    // Update employee used/remaining days
-    const employees = getEmployees()
-    const employee = employees.find(emp => emp.id === deletedVacation.employee_id)
+    await vacations.delete(vacationId)
 
-    if (employee) {
-      const oldUsed = employee.used
-      employee.used = parseFloat(employee.used.toString()) - parseFloat(deletedVacation.days.toString())
-      employee.remaining = employee.allowance - employee.used
+    console.log(`✅ Successfully deleted vacation: ${vacationId}`)
 
-      console.log(`📊 Reverted employee ${employee.name}: used ${oldUsed} → ${employee.used}, remaining: ${employee.remaining}`)
-    }
-
-    console.log(`🗑️ Deleted vacation: ${deletedVacation.id}`)
-
-    return NextResponse.json({
-      success: true,
-      deletedVacation,
-      employees: employees
-    })
+    return NextResponse.json({ success: true })
 
   } catch (error: any) {
     console.error('❌ DELETE /api/vacations error:', error)

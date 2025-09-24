@@ -1,8 +1,11 @@
-// Mock implementation for Supabase - uses in-memory storage instead
+import { createClient } from '@supabase/supabase-js'
 
-console.log('✅ Using in-memory storage (no database required)')
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// Mock connection test that always succeeds
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Connection test function
 export async function testConnection(): Promise<{
   ok: boolean
   connectionTime?: number
@@ -10,46 +13,90 @@ export async function testConnection(): Promise<{
   error?: string
   details?: any
 }> {
-  console.log('🧪 Mock connection test - always succeeds')
+  const startTime = Date.now()
 
-  return {
-    ok: true,
-    connectionTime: 5,
-    tableStatus: {
-      employees: true,
-      vacations: true,
-      holidays: true,
-      settings: true
+  try {
+    console.log('🔄 Testing Supabase connection...')
+
+    // Test basic connection
+    const { data, error } = await supabase
+      .from('employees')
+      .select('count', { count: 'exact', head: true })
+
+    const connectionTime = Date.now() - startTime
+
+    if (error) {
+      console.error('❌ Supabase connection failed:', error)
+      return {
+        ok: false,
+        connectionTime,
+        error: error.message,
+        details: error
+      }
+    }
+
+    console.log('✅ Supabase connection successful')
+    return {
+      ok: true,
+      connectionTime,
+      tableStatus: {
+        employees: true,
+        vacations: true,
+        holidays: true,
+        settings: true
+      }
+    }
+  } catch (error) {
+    const connectionTime = Date.now() - startTime
+    console.error('❌ Connection test failed:', error)
+    return {
+      ok: false,
+      connectionTime,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      details: error
     }
   }
 }
 
-// Mock table check that always succeeds
+// Check if required tables exist
 export async function checkTablesExist(): Promise<{
   exists: boolean
   tables: Record<string, boolean>
   missing: string[]
 }> {
-  console.log('🧪 Mock table check - all tables exist')
+  const requiredTables = ['employees', 'vacations', 'holidays', 'settings']
+  const tables: Record<string, boolean> = {}
+  const missing: string[] = []
 
-  return {
-    exists: true,
-    tables: {
-      employees: true,
-      vacations: true,
-      holidays: true,
-      settings: true
-    },
-    missing: []
+  try {
+    for (const table of requiredTables) {
+      try {
+        await supabase.from(table).select('*', { count: 'exact', head: true })
+        tables[table] = true
+      } catch (error) {
+        tables[table] = false
+        missing.push(table)
+      }
+    }
+
+    return {
+      exists: missing.length === 0,
+      tables,
+      missing
+    }
+  } catch (error) {
+    console.error('❌ Failed to check tables:', error)
+
+    // Mark all tables as missing if we can't check
+    for (const table of requiredTables) {
+      tables[table] = false
+      missing.push(table)
+    }
+
+    return {
+      exists: false,
+      tables,
+      missing
+    }
   }
-}
-
-// Mock supabase client (not used by APIs anymore)
-export const supabase = {
-  from: () => ({
-    select: () => Promise.resolve({ data: [], error: null }),
-    insert: () => Promise.resolve({ data: [], error: null }),
-    update: () => Promise.resolve({ data: [], error: null }),
-    delete: () => Promise.resolve({ data: [], error: null })
-  })
 }
