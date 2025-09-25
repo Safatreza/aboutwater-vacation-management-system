@@ -53,10 +53,10 @@ export default function EmployeeTable({
       const employeeSummaries: EmployeeSummary[] = apiEmployees.map(emp => ({
         employee_id: emp.id,
         employee_name: emp.name,
-        vacation_allowance: emp.allowance,
-        used_days: emp.used,
-        remaining_days: emp.remaining,
-        color: emp.color
+        vacation_allowance: emp.allowance_days || 25,
+        used_days: emp.used_vacation_days || 0,
+        remaining_days: (emp.allowance_days || 25) - (emp.used_vacation_days || 0),
+        color: emp.color || '#1c5975'
       }))
 
       setEmployees(employeeSummaries)

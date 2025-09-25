@@ -91,11 +91,11 @@ export default function Dashboard() {
       const employeesWithColors = dbEmployees.map((emp: any, index: number) => ({
         id: emp.id,
         name: emp.name,
-        allowance_days: emp.allowance,
-        used_vacation_days: emp.used,
-        remaining_vacation: emp.remaining,
-        region_code: 'DE',
-        active: true,
+        allowance_days: emp.allowance_days || 25,
+        used_vacation_days: emp.used_vacation_days || 0,
+        remaining_vacation: (emp.allowance_days || 25) - (emp.used_vacation_days || 0),
+        region_code: emp.region_code || 'DE-BY',
+        active: emp.active !== false,
         color: emp.color || defaultEmployeeColors[index % defaultEmployeeColors.length]
       }))
       setEmployees(employeesWithColors)
@@ -108,9 +108,9 @@ export default function Dashboard() {
           employee_id: vacation.employee_id,
           start_date: vacation.start_date,
           end_date: vacation.end_date,
-          working_days: vacation.days,
-          note: vacation.reason,
-          employeeName: emp?.name || 'Unknown',
+          working_days: vacation.working_days || vacation.days,
+          note: vacation.note || vacation.reason,
+          employeeName: emp?.name || vacation.employee?.name || 'Unknown',
           color: emp?.color || '#1c5975',
           dates: generateDateRange(vacation.start_date, vacation.end_date)
         }

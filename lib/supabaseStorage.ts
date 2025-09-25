@@ -16,7 +16,7 @@ import type {
 export const employees = {
   async getAll(): Promise<Employee[]> {
     try {
-      const { data, error } = await supabase
+      const { data: employeesData, error } = await supabase
         .from('employees')
         .select('*')
         .eq('active', true)
@@ -24,8 +24,30 @@ export const employees = {
 
       if (error) throw error
 
-      console.log(`📖 Loaded ${data.length} employees from Supabase`)
-      return data || []
+      // Calculate used vacation days for each employee from vacations table
+      const currentYear = new Date().getFullYear()
+      const employeesWithVacationData = await Promise.all(
+        (employeesData || []).map(async (employee) => {
+          // Get vacation days used this year
+          const { data: vacations } = await supabase
+            .from('vacations')
+            .select('working_days')
+            .eq('employee_id', employee.id)
+            .gte('start_date', `${currentYear}-01-01`)
+            .lte('end_date', `${currentYear}-12-31`)
+
+          const usedVacationDays = vacations?.reduce((sum, vac) => sum + (vac.working_days || 0), 0) || 0
+
+          return {
+            ...employee,
+            used_vacation_days: usedVacationDays,
+            remaining_vacation: (employee.allowance_days || 25) - usedVacationDays
+          }
+        })
+      )
+
+      console.log(`📖 Loaded ${employeesWithVacationData.length} employees with calculated vacation data from Supabase`)
+      return employeesWithVacationData
     } catch (error) {
       console.error('❌ Failed to fetch employees:', error)
       throw error
