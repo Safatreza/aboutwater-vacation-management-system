@@ -288,16 +288,115 @@ export async function generateVacationExcel(): Promise<boolean> {
   try {
     console.log('📊 Generating vacation Excel export...')
 
-    // This is a placeholder implementation
-    // In a real application, you would use a library like xlsx or exceljs
+    // Import ExcelJS dynamically to avoid SSR issues
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+
+    // Load data
     const employees = await getEmployees()
     const vacations = await getVacations()
 
-    console.log(`📊 Export would include ${employees.length} employees and ${vacations.length} vacations`)
+    console.log(`📊 Exporting ${employees.length} employees and ${vacations.length} vacations`)
 
-    // For now, just return success
-    // TODO: Implement actual Excel generation
-    console.warn('⚠️ Excel generation not yet implemented - returning success')
+    // Create Employee Overview worksheet
+    const employeeSheet = workbook.addWorksheet('Employee Overview')
+
+    // Employee headers
+    employeeSheet.columns = [
+      { header: 'Employee Name', key: 'name', width: 25 },
+      { header: 'Region', key: 'region', width: 15 },
+      { header: 'Total Vacation Days', key: 'allowance', width: 20 },
+      { header: 'Used Days', key: 'used', width: 15 },
+      { header: 'Remaining Days', key: 'remaining', width: 18 },
+      { header: 'Status', key: 'status', width: 12 }
+    ]
+
+    // Add employee data
+    employees.forEach(emp => {
+      employeeSheet.addRow({
+        name: emp.name,
+        region: emp.region_code || 'DE-BY',
+        allowance: emp.allowance_days,
+        used: emp.used_vacation_days || 0,
+        remaining: emp.remaining_vacation || (emp.allowance_days - (emp.used_vacation_days || 0)),
+        status: emp.active ? 'Active' : 'Inactive'
+      })
+    })
+
+    // Style employee headers
+    employeeSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    employeeSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1C5975' } }
+
+    // Create Vacation Entries worksheet
+    const vacationSheet = workbook.addWorksheet('Vacation Entries')
+
+    // Vacation headers
+    vacationSheet.columns = [
+      { header: 'Employee Name', key: 'employeeName', width: 25 },
+      { header: 'Start Date', key: 'startDate', width: 15 },
+      { header: 'End Date', key: 'endDate', width: 15 },
+      { header: 'Working Days', key: 'workingDays', width: 15 },
+      { header: 'Note', key: 'note', width: 30 },
+      { header: 'Created', key: 'created', width: 18 }
+    ]
+
+    // Add vacation data with employee names
+    vacations.forEach(vacation => {
+      const employee = employees.find(emp => emp.id === vacation.employee_id)
+      vacationSheet.addRow({
+        employeeName: employee?.name || 'Unknown Employee',
+        startDate: new Date(vacation.start_date).toLocaleDateString('de-DE'),
+        endDate: new Date(vacation.end_date).toLocaleDateString('de-DE'),
+        workingDays: vacation.working_days,
+        note: vacation.note || '',
+        created: vacation.created_at ? new Date(vacation.created_at).toLocaleDateString('de-DE') : ''
+      })
+    })
+
+    // Style vacation headers
+    vacationSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    vacationSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1C5975' } }
+
+    // Create Summary worksheet
+    const summarySheet = workbook.addWorksheet('Summary')
+
+    // Summary data
+    const totalAllowance = employees.reduce((sum, emp) => sum + emp.allowance_days, 0)
+    const totalUsed = employees.reduce((sum, emp) => sum + (emp.used_vacation_days || 0), 0)
+    const totalRemaining = totalAllowance - totalUsed
+
+    summarySheet.addRow(['AboutWater GmbH - Vacation Management Summary'])
+    summarySheet.addRow([])
+    summarySheet.addRow(['Report Generated:', new Date().toLocaleDateString('de-DE')])
+    summarySheet.addRow([])
+    summarySheet.addRow(['Total Employees:', employees.length])
+    summarySheet.addRow(['Total Vacation Days Allocated:', totalAllowance])
+    summarySheet.addRow(['Total Vacation Days Used:', totalUsed])
+    summarySheet.addRow(['Total Vacation Days Remaining:', totalRemaining])
+    summarySheet.addRow(['Total Vacation Entries:', vacations.length])
+
+    // Style summary
+    summarySheet.getCell('A1').font = { bold: true, size: 16 }
+    summarySheet.getColumn('A').width = 35
+    summarySheet.getColumn('B').width = 20
+
+    // Generate Excel file and trigger download
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+
+    // Create download link
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `AboutWater_Urlaubsdaten_${new Date().toISOString().split('T')[0]}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    console.log('✅ Excel file generated and downloaded successfully')
     return true
 
   } catch (error) {
