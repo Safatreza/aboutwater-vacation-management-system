@@ -3,33 +3,66 @@
 import { useState, useEffect } from 'react'
 import AboutWaterHeader from '@/components/layout/AboutWaterHeader'
 import { Download, Database, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react'
-import { generateVacationExcel, getEmployees, getVacations } from '@/lib/clientStorage'
+import { generateVacationExcel, getEmployees, getVacations, StoredEmployee } from '@/lib/clientStorage'
 
 export default function BackupPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [lastExport, setLastExport] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<'idle' | 'success' | 'error'>('idle')
-  const [employees, setEmployees] = useState(getEmployees())
-  const [vacations, setVacations] = useState(getVacations())
+  const [employees, setEmployees] = useState<StoredEmployee[]>([])
+  const [vacations, setVacations] = useState<any[]>([])
 
   // Calculate statistics from state
-  const totalAllowedDays = employees.reduce((sum, emp) => sum + emp.allowance, 0)
-  const totalUsedDays = employees.reduce((sum, emp) => sum + emp.used, 0)
+  const totalAllowedDays = employees.reduce((sum, emp) => sum + emp.allowance_days, 0)
+  const totalUsedDays = employees.reduce((sum, emp) => sum + (emp.used_vacation_days || 0), 0)
+
+  // Load initial data
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [employeeData, vacationData] = await Promise.all([
+          getEmployees(),
+          getVacations()
+        ])
+        setEmployees(employeeData)
+        setVacations(vacationData)
+      } catch (error) {
+        console.error('Failed to load backup data:', error)
+      }
+    }
+    loadData()
+  }, [])
 
   // REAL-TIME UPDATES: Listen for localStorage changes to update statistics
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
+    const handleStorageChange = async (e: StorageEvent) => {
       if (e.key && (e.key.includes('vacation-employees') || e.key.includes('vacation-entries'))) {
         console.log('🔄 Backup Page: localStorage changed, refreshing data')
-        setEmployees(getEmployees())
-        setVacations(getVacations())
+        try {
+          const [employeeData, vacationData] = await Promise.all([
+            getEmployees(),
+            getVacations()
+          ])
+          setEmployees(employeeData)
+          setVacations(vacationData)
+        } catch (error) {
+          console.error('Failed to refresh backup data:', error)
+        }
       }
     }
 
-    const handleCustomStorageChange = () => {
+    const handleCustomStorageChange = async () => {
       console.log('🔄 Backup Page: Custom storage event, refreshing data')
-      setEmployees(getEmployees())
-      setVacations(getVacations())
+      try {
+        const [employeeData, vacationData] = await Promise.all([
+          getEmployees(),
+          getVacations()
+        ])
+        setEmployees(employeeData)
+        setVacations(vacationData)
+      } catch (error) {
+        console.error('Failed to refresh backup data from custom event:', error)
+      }
     }
 
     window.addEventListener('storage', handleStorageChange)

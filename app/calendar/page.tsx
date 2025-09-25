@@ -37,11 +37,25 @@ export default function CalendarPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedYear] = useState(new Date().getFullYear())
+  const [months, setMonths] = useState<Array<{
+    name: string
+    days: Array<{
+      date: number
+      dateString: string
+      vacations: any[]
+      holidays: any[]
+      isWeekend: boolean
+      isHoliday: boolean
+    }>
+  }>>([]);
 
   useEffect(() => {
-    // Initialize localStorage first
-    initializeStorage()
-    fetchData()
+    async function initAndFetch() {
+      // Initialize storage first
+      await initializeStorage()
+      await fetchData()
+    }
+    initAndFetch()
   }, [selectedYear])
 
   // REAL-TIME UPDATES: Listen for localStorage changes
@@ -71,17 +85,17 @@ export default function CalendarPage() {
     try {
       setLoading(true)
 
-      // CRITICAL FIX: Load from localStorage first (primary source)
-      const localEmployees = getEmployees()
-      console.log(`📖 Loaded ${localEmployees.length} employees from localStorage`)
+      // CRITICAL FIX: Load from storage first (primary source)
+      const localEmployees = await getEmployees()
+      console.log(`📖 Loaded ${localEmployees.length} employees from storage`)
 
       // Convert to expected format
       const formattedEmployees: Employee[] = localEmployees.map(emp => ({
         id: emp.id,
         name: emp.name,
-        allowance_days: emp.allowance,
-        region_code: 'DE',
-        active: true
+        allowance_days: emp.allowance_days,
+        region_code: emp.region_code || 'DE',
+        active: emp.active
       }))
 
       setEmployees(formattedEmployees)
@@ -93,7 +107,7 @@ export default function CalendarPage() {
 
       let localVacations: Vacation[] = []
       for (let date = new Date(startOfYear); date <= endOfYear; date.setDate(date.getDate() + 1)) {
-        const dayVacations = getVacationsForDate(new Date(date))
+        const dayVacations = await getVacationsForDate(new Date(date))
         dayVacations.forEach(vacation => {
           // Check if we already have this vacation (avoid duplicates)
           if (!localVacations.find(v => v.id === vacation.id)) {
@@ -102,8 +116,8 @@ export default function CalendarPage() {
               employee_id: vacation.employee_id,
               start_date: vacation.start_date,
               end_date: vacation.end_date,
-              working_days: vacation.days,
-              note: vacation.reason
+              working_days: vacation.working_days,
+              note: vacation.note || null || null
             })
           }
         })
@@ -111,6 +125,10 @@ export default function CalendarPage() {
 
       console.log(`📖 Loaded ${localVacations.length} vacations for ${currentYear} from localStorage`)
       setVacations(localVacations)
+
+      // Generate calendar data
+      const calendarMonths = await generateCalendarDays()
+      setMonths(calendarMonths)
 
       // Also try to fetch from API (secondary source, don't fail if it doesn't work)
       try {
@@ -145,7 +163,7 @@ export default function CalendarPage() {
     return employee ? employee.name : 'Unknown Employee'
   }
 
-  const generateCalendarDays = () => {
+  const generateCalendarDays = async () => {
     const year = selectedYear
     const months = [] as Array<{
       name: string
@@ -180,8 +198,8 @@ export default function CalendarPage() {
         const currentDate = new Date(year, month, day)
         const dateString = currentDate.toISOString().split('T')[0]
 
-        // CRITICAL FIX: Find vacations for this date using localStorage
-        const dayVacationsFromStorage = getVacationsForDate(currentDate)
+        // CRITICAL FIX: Find vacations for this date using storage
+        const dayVacationsFromStorage = await getVacationsForDate(currentDate)
 
         // Also check the state vacations as backup
         const dayVacationsFromState = vacations.filter(vacation => {
@@ -207,8 +225,8 @@ export default function CalendarPage() {
           employee_id: vacation.employee_id,
           start_date: vacation.start_date,
           end_date: vacation.end_date,
-          working_days: vacation.days || vacation.working_days || 1,
-          note: vacation.reason || vacation.note
+          working_days: vacation.working_days || 1,
+          note: vacation.note || null
         }))
 
         // Find holidays for this date
@@ -231,7 +249,6 @@ export default function CalendarPage() {
     return months
   }
 
-  const months = generateCalendarDays()
 
   return (
     <div className="min-h-screen bg-transparent">

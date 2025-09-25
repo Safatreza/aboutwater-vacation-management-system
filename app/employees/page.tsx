@@ -51,23 +51,25 @@ export default function EmployeesPage() {
     }
   }, [selectedYear])
 
-  const loadEmployeeData = () => {
+  const loadEmployeeData = async () => {
     try {
       setLoading(true)
 
-      // PRIMARY: Load from localStorage for instant updates
-      const localEmployees = getEmployees()
-      const localVacations = getVacations()
+      // Load from Supabase storage
+      const [localEmployees, localVacations] = await Promise.all([
+        getEmployees(),
+        getVacations()
+      ])
 
-      console.log(`📖 Employees Page: Loading ${localEmployees.length} employees from localStorage`)
+      console.log(`📖 Employees Page: Loading ${localEmployees.length} employees from storage`)
 
       // Convert to EmployeeSummary format
       const summaries: EmployeeSummary[] = localEmployees.map(emp => ({
         employee_id: emp.id,
         employee_name: emp.name,
-        vacation_allowance: emp.allowance,
-        used_days: emp.used,
-        remaining_days: emp.remaining,
+        vacation_allowance: emp.allowance_days,
+        used_days: emp.used_vacation_days || 0,
+        remaining_days: emp.remaining_vacation || 0,
         employee_region: 'DE',
         color: emp.color
       }))
@@ -86,20 +88,21 @@ export default function EmployeesPage() {
     loadEmployeeData() // Refresh data after adding
   }
 
-  const handleDeleteEmployee = (employeeId: string, employeeName: string) => {
+  const handleDeleteEmployee = async (employeeId: string, employeeName: string) => {
     if (!confirm(`Sind Sie sicher, dass Sie ${employeeName} löschen möchten?`)) {
       return
     }
 
     try {
-      // Remove from localStorage
-      const currentEmployees = getEmployees()
+      // Remove from storage
+      const currentEmployees = await getEmployees()
       const updatedEmployees = currentEmployees.filter(emp => emp.id !== employeeId)
 
-      if (saveEmployees(updatedEmployees)) {
+      try {
+        await saveEmployees(updatedEmployees)
         alert(`Mitarbeiter ${employeeName} wurde erfolgreich gelöscht.`)
-        loadEmployeeData() // Refresh data
-      } else {
+        await loadEmployeeData() // Refresh data
+      } catch (saveError) {
         throw new Error('Failed to save updated employee list')
       }
     } catch (error) {
@@ -111,23 +114,24 @@ export default function EmployeesPage() {
   const handleUpdateAllowance = async (employeeId: string, newAllowance: number) => {
     try {
       // Update in localStorage
-      const currentEmployees = getEmployees()
+      const currentEmployees = await getEmployees()
       const updatedEmployees = currentEmployees.map(emp => {
         if (emp.id === employeeId) {
-          const newRemaining = newAllowance - emp.used
+          const newRemaining = newAllowance - (emp.used_vacation_days || 0)
           return {
             ...emp,
-            allowance: newAllowance,
-            remaining: newRemaining
+            allowance_days: newAllowance,
+            remaining_vacation: newRemaining
           }
         }
         return emp
       })
 
-      if (saveEmployees(updatedEmployees)) {
+      try {
+        await saveEmployees(updatedEmployees)
         console.log(`✅ Updated allowance for employee ${employeeId}: ${newAllowance} days`)
-        loadEmployeeData() // Refresh data to show updated calculations
-      } else {
+        await loadEmployeeData() // Refresh data to show updated calculations
+      } catch (saveError) {
         throw new Error('Failed to save updated employee data')
       }
     } catch (error) {
@@ -276,7 +280,7 @@ export default function EmployeesPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-asap">
                             <EditableNumber
-                              value={employee.allowance}
+                              value={employee.allowance_days}
                               onSave={(newValue) => handleUpdateAllowance(employee.id, newValue)}
                               min={1}
                               max={365}
@@ -286,12 +290,12 @@ export default function EmployeesPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-asap">
                             <span className="text-orange-600 font-medium">
-                              {employee.used} Tage
+                              {employee.used_vacation_days || 0} Tage
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-asap">
                             <span className="text-green-600 font-medium">
-                              {employee.remaining} Tage
+                              {employee.remaining_vacation || 0} Tage
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-asap">

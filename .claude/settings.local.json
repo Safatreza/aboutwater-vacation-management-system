@@ -25,7 +25,10 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm run:*)",
       "Bash(vercel login:*)",
-      "Bash(vercel project rm:*)"
+      "Bash(vercel project rm:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:aboutwater-vacation-management-syst.vercel.app)",
+      "Bash(npm ls:*)"
     ],
     "deny": [],
     "ask": []
