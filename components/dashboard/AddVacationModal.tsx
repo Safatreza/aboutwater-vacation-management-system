@@ -133,8 +133,8 @@ export default function AddVacationModal({ employeeId, year, onClose, onSuccess 
         employee_id: employeeId,
         start_date: startDate,
         end_date: endDate,
-        days: dayCount,
-        reason: note.trim() || 'Urlaub'
+        working_days: dayCount,
+        note: note.trim() || 'Urlaub'
       })
 
       console.log('✅ AddVacationModal: Vacation added via centralized API:', result)

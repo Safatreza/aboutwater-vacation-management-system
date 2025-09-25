@@ -98,8 +98,8 @@ export default function CalendarPage() {
           employee_id: vacation.employee_id,
           start_date: vacation.start_date,
           end_date: vacation.end_date,
-          working_days: vacation.working_days || vacation.days,
-          note: vacation.note || vacation.reason
+          working_days: vacation.working_days || (vacation as any).days,
+          note: vacation.note || (vacation as any).reason
         }))
 
       console.log(`📖 Calendar: Filtered to ${yearVacations.length} vacations for ${selectedYear}`)

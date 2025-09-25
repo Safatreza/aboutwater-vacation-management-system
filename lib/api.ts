@@ -4,10 +4,12 @@
 export interface Employee {
   id: string;
   name: string;
-  allowance: number;
-  used: number;
-  remaining: number;
-  color: string;
+  allowance_days: number;
+  used_vacation_days: number;
+  remaining_vacation: number;
+  region_code?: string;
+  active: boolean;
+  color?: string;
 }
 
 export interface Vacation {
@@ -15,17 +17,17 @@ export interface Vacation {
   employee_id: string;
   start_date: string;
   end_date: string;
-  days: number;
-  reason: string;
-  created_at: string;
+  working_days: number;
+  note?: string;
+  created_at?: string;
 }
 
 export interface AddVacationData {
   employee_id: string;
   start_date: string;
   end_date: string;
-  days: number;
-  reason: string;
+  working_days: number;
+  note?: string;
 }
 
 // =====================================================
@@ -153,7 +155,7 @@ export async function addVacation(vacationData: AddVacationData): Promise<{succe
     throw new Error(`Failed to parse server response: ${responseText}`);
   }
 
-  console.log(`✅ API: Vacation added successfully - ${result.vacation.days} days for employee ${result.vacation.employee_id}`);
+  console.log(`✅ API: Vacation added successfully - ${result.vacation.working_days} days for employee ${result.vacation.employee_id}`);
 
   return result;
 }
